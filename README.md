@@ -39,6 +39,18 @@ npm run dev
 
 ## 公開
 
+**PCに開発環境がなくても、GitHub Actionsから公開できます。** 最初の1回だけCloudflareとGitHubの設定が必要です。
+
+1. CloudflareのダッシュボードでアカウントIDを確認し、権限をWorkersの編集に限定したAPIトークンを作成します。
+2. GitHubリポジトリの **Settings → Secrets and variables → Actions** で次のRepository secretsを設定します。
+   - `CLOUDFLARE_ACCOUNT_ID`
+   - `CLOUDFLARE_API_TOKEN`
+3. **Actions → Deploy to Cloudflare → Run workflow** を押して実行します。GitHub Actionsでテスト・ビルド・Worker公開まで行います。
+
+CloudflareのAPIトークンは秘密情報なので、チャットや通常のリポジトリファイルには記載しないでください。実際の公開URLはDeployジョブのログに表示されます。
+
+PCから手動デプロイする場合は以下を使えます。
+
 ```bash
 npx wrangler login
 npm run deploy
@@ -67,7 +79,7 @@ GET  /api/surveys/:id/results       Bearerトークン必須の集計情報
 
 ## キャラクター画像
 
-キャラごとに `0000` 〜 `1111` の4ビットコードが割り当てられています。現在は16種類の名前・説明と絵文字ベースの仮カードが表示されます。今後画像制作後に `public/characters/0000.webp` 〜 `1111.webp` を置き、`src/main.tsx` の `CharacterDisplay` を画像表示に切り替えます。詳細は `public/characters/README.md`。
+キャラごとに `0000` 〜 `1111` の4ビットコードが割り当てられています。現在は `src/shared/characterArt.ts` の16種類のオリジナルSVGタコキャラクターを診断結果・PNGカードの両方に表示します。画像は外部ホスト不要のdata URLなので軽量です。今後、より描き込んだWebPイラストに差し替える場合は `public/characters/` を利用します。
 
 ## 本番公開前に追加したいこと
 
