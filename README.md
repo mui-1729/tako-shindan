@@ -35,7 +35,7 @@ npm run dev
 
 `npm run dev` は最初に静的ファイルをビルドし、`wrangler dev` (API: 8787) と Vite (画面: 5173) を起動します。ブラウザで `http://localhost:5173` を開いてください。最初のビルド後はフロントエンドの変更が即時反映されます。APIやDurable Objectの変更はWranglerが読み込みます。
 
-> この環境ではnpmの依存関係を取得できなかったため、npm install / Workerのローカル実行テストはまだ完了していません。実機での動作確認が必要です。
+> GitHub Actionsで依存パッケージのインストール、単体テスト、TypeScriptチェック、Viteビルドを検証しています。公開先での実ブラウザ操作と負荷テストは別途必要です。
 
 ## 公開
 
