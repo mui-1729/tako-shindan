@@ -1,0 +1,176 @@
+import React, { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { axes, characterFromScores, isValidAnswers, positions, questions, relations, scoreAnswers, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
+import './styles.css';
+
+type PublicInfo = { name: string; count: number };
+type Created = { id: string; token: string; name: string };
+type LocalSurvey = { name: string; ownerUrl: string; shareUrl: string };
+
+function api<T>(path: string, options?: RequestInit): Promise<T> {
+  return fetch(`/api${path}`, { ...options, headers: { 'content-type': 'application/json', ...options?.headers } }).then(async response => {
+    const data = await response.json() as T & { error?: string };
+    if (!response.ok) throw new Error(data.error || '通信に失敗しました');
+    return data;
+  });
+}
+function copy(text: string) { return navigator.clipboard.writeText(text); }
+function getLocalSurveys(): LocalSurvey[] {
+  try { return JSON.parse(localStorage.getItem('tako_surveys') || '[]') as LocalSurvey[]; } catch { return []; }
+}
+function saveLocalSurvey(survey: LocalSurvey) {
+  try { localStorage.setItem('tako_surveys', JSON.stringify([survey, ...getLocalSurveys()].slice(0, 10))); } catch { /* storage optional */ }
+}
+function visitorIdFor(surveyId: string): string {
+  const key = `tako_visitor_${surveyId}`;
+  try {
+    const old = localStorage.getItem(key);
+    if (old && /^[a-f0-9]{32}$/.test(old)) return old;
+  } catch { /* storage may be unavailable */ }
+  const value = Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(key, value); } catch { /* duplicate prevention then becomes best-effort */ }
+  return value;
+}
+function PageShell({ children }: { children: React.ReactNode }) {
+  return <div className="app-shell"><header className="header container"><a className="logo" href="/"><span className="logo-icon">🐙</span> たこしんだん<span className="logo-sub">TAKO SHINDAN</span></a><span className="header-tag">みんなから見たわたし</span></header><main className="container main">{children}</main><footer className="footer container">あの人から見たあなたを、ちょっとだけ知ってみる。<span>これはエンタメ診断です。性格を断定するものではありません。</span></footer></div>;
+}
+function ToastButton({ text, label, className = '' }: { text: string; label: string; className?: string }) {
+  const [done, setDone] = useState(false);
+  return <button className={`button ${className}`} onClick={async () => { try { await copy(text); setDone(true); window.setTimeout(() => setDone(false), 2200); } catch { window.prompt('こちらのURLをコピーしてください', text); } }}>{done ? '✓ コピーしました' : label}</button>;
+}
+function CharacterDisplay({ scores, target, perspective }: { scores: number[]; target?: string; perspective?: string }) {
+  const ch = characterFromScores(scores);
+  return <div className="character-card" style={{ '--character-color': ch.color } as React.CSSProperties}>
+    <div className="character-topline">FROM MY POINT OF VIEW <span>TYPE {ch.code}</span></div>
+    <div className="character-emoji" role="img" aria-label="キャラクターのイメージ">{ch.emoji}</div>
+    <p className="character-kicker">{target ? `${perspective || 'みんな'}から見た${target}` : 'あなたから見たこの人'}</p>
+    <h2>{ch.title}</h2><p className="character-desc">{ch.description}</p>
+    <div className="character-footer">TAKO SHINDAN <span>✦ MY CHARACTER ✦</span></div>
+  </div>;
+}
+function Bars({ scores }: { scores: number[] }) {
+  return <div className="bars">{axes.map((axis, index) => <div className="bar-row" key={axis.name}>
+    <div className="bar-title"><b>{axis.icon} {axis.name}</b><span>{Math.round(scores[index])} / 100</span></div>
+    <div className="bar-track"><span style={{ width: `${scores[index]}%` }} /></div>
+    <div className="bar-ends"><span>{axis.left}</span><span>{axis.right}</span></div>
+  </div>)}</div>;
+}
+function Home() {
+  const [name, setName] = useState('');
+  const [created, setCreated] = useState<Created | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const surveys = getLocalSurveys();
+  const shareUrl = created ? `${location.origin}/s/${created.id}` : '';
+  const ownerUrl = created ? `${location.origin}/manage/${created.id}#token=${created.token}` : '';
+  async function create(e: React.FormEvent) {
+    e.preventDefault(); setError('');
+    if (!name.trim() || name.trim().length > 24) return setError('名前は1〜24文字で入力してね');
+    setCreating(true);
+    try {
+      const result = await api<Created>('/surveys', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+      setCreated(result);
+      saveLocalSurvey({ name: result.name, shareUrl: `${location.origin}/s/${result.id}`, ownerUrl: `${location.origin}/manage/${result.id}#token=${result.token}` });
+    } catch (err) { setError(err instanceof Error ? err.message : '作成できませんでした'); }
+    finally { setCreating(false); }
+  }
+  return <PageShell>
+    <div className="hero"><div className="hero-copy"><div className="eyebrow">✦ SELF × OTHERS PERSONALITY ✦</div><h1>あなたって、<br/><em>どんな人？</em></h1><p>親友から見たあなた。先輩から見たあなた。<br/>同じ自分なのに、ちがうキャラが見えてくる。</p><div className="tag-row"><span>🎭 全16タイプ</span><span>📝 約1分</span><span>💌 ログイン不要</span></div></div><div className="hero-visual"><div className="orbit orbit-one">🐙</div><div className="orbit orbit-two">🦊</div><div className="orbit orbit-three">🐰</div><span className="orbit-star star-one">✳</span><span className="orbit-star star-two">✴</span></div></div>
+    <section className="panel create-panel">
+      {!created ? <><div className="section-label">01 / START</div><h2>自分の診断リンクを作ろう</h2><p className="subtle">ニックネームを入力するだけ。友達に送って診断してもらおう！</p><form onSubmit={create} className="create-form"><label htmlFor="name">診断される人の名前</label><input id="name" maxLength={24} value={name} onChange={e => setName(e.target.value)} placeholder="例：たろう" required/><button className="button primary" type="submit" disabled={creating}>{creating ? '作成中…' : '診断リンクを作る →'}</button></form>{error && <p className="alert" role="alert">{error}</p>}</> : <><div className="section-label">✓ LINK CREATED</div><h2>{created.name}の診断リンクができた！</h2><p className="subtle">まずは友達に回答用リンクを送ってね。</p><div className="url-box">{shareUrl}</div><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary block"/><div className="soft-box"><b>🔐 あなた専用の管理リンク</b><p>友達の回答を集計するためのリンク。これを他人には送らないでね。</p><ToastButton text={ownerUrl} label="管理リンクをコピー" className="outline"/><a className="text-link" href={ownerUrl}>集計ページを開く →</a></div><button className="link-button" onClick={() => { setCreated(null); setName(''); }}>別のリンクを作る</button></>}
+    </section>
+    <div className="steps-grid">{[{ n: '01', icon: '🔗', title: 'リンクを作る', text: '名前を入れて、SNSで友達に共有。' }, { n: '02', icon: '🗳️', title: '友達が診断', text: '関係性2問と性格8問に回答。' }, { n: '03', icon: '🎉', title: 'キャラがわかる', text: '16タイプから自分の印象を発見！' }].map(s => <div className="step-card" key={s.n}><span>{s.n} / {s.icon}</span><h3>{s.title}</h3><p>{s.text}</p></div>)}</div>
+    {surveys.length > 0 && <section className="my-links"><h3>📌 この端末で作った診断</h3><div className="saved-links">{surveys.map((s, i) => <a key={`${s.ownerUrl}-${i}`} href={s.ownerUrl}>{s.name}の集計を見る <span>↗</span></a>)}</div><p className="micro">保存はこのブラウザ内だけ。端末を変える場合は管理リンクを保管してね。</p></section>}
+  </PageShell>;
+}
+function Survey({ id }: { id: string }) {
+  const [info, setInfo] = useState<PublicInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [step, setStep] = useState(0);
+  const [relation, setRelation] = useState<Relation | null>(null);
+  const [position, setPosition] = useState<Position | null>(null);
+  const [answers, setAnswers] = useState<number[]>(Array(8).fill(-1));
+  const [answered, setAnswered] = useState<boolean[]>(Array(8).fill(false));
+  const [submitting, setSubmitting] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [resultScores, setResultScores] = useState<number[]>([]);
+  useEffect(() => { api<PublicInfo>(`/surveys/${id}`).then(setInfo).catch(e => setError(e.message)).finally(() => setLoading(false)); }, [id]);
+  const optionSelected = step === 0 ? relation !== null : step === 1 ? position !== null : answered[step - 2];
+  const canFinish = isValidAnswers(answers);
+  const canSkip = step >= 2;
+  async function next() {
+    setError('');
+    if (!optionSelected) return;
+    if (step < 9) { setStep(step + 1); return; }
+    if (!canFinish || !relation || !position) { setError('回答は各軸1問以上、合計6問以上必要です。前の質問に戻って回答してね。'); return; }
+    setSubmitting(true);
+    try {
+      await api(`/surveys/${id}/answers`, { method: 'POST', body: JSON.stringify({ relation, position, answers, visitorId: visitorIdFor(id) }) });
+      setResultScores(scoreAnswers(answers)); setFinished(true);
+    } catch (e) { setError(e instanceof Error ? e.message : '送信できませんでした'); }
+    finally { setSubmitting(false); }
+  }
+  const perspective = relation ? relations.find(r => r.id === relation)?.label : '友達';
+  if (loading) return <PageShell><div className="panel centered"><h2>読み込み中… 🐙</h2></div></PageShell>;
+  if (!info) return <PageShell><div className="panel centered"><h2>診断リンクが見つかりません</h2><p className="alert">{error}</p><a href="/" className="button primary">トップへ戻る</a></div></PageShell>;
+  if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective}/><p className="micro">※ キャラクターは仮イメージ。16種類のオリジナル画像をあとから設定できます。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
+  const currentQ = questions[step - 2];
+  return <PageShell><div className="survey-layout"><div className="survey-intro"><div className="eyebrow">✦ FROM YOUR POINT OF VIEW</div><h1><em>{info.name}</em>って<br/>どんな人？</h1><p>あなたから見た印象を教えてね。<br/>正解・不正解はないよ！</p><div className="mini-characters">🦊 🐙 🐰</div><p className="micro">現在 {info.count} 人が回答済み</p></div><section className="panel question-panel"><div className="question-meta"><span>{step < 2 ? '関係性について' : '性格について'}</span><strong>{step + 1} <small>/ 10</small></strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }}/></div>{step === 0 ? <><h2>この人とはどんな関係？</h2><p className="subtle">一番近いものを選んでね</p><div className="option-list">{relations.map(r => <button key={r.id} className={`option ${relation === r.id ? 'selected' : ''}`} onClick={() => setRelation(r.id)}><span>{r.emoji} {r.label}</span><b>{relation === r.id ? '✓' : '○'}</b></button>)}</div></> : step === 1 ? <><h2>あなたは、この人の？</h2><p className="subtle">自分から見た立場を選んでね</p><div className="option-list">{positions.map(p => <button key={p.id} className={`option ${position === p.id ? 'selected' : ''}`} onClick={() => setPosition(p.id)}><span>{p.emoji} {p.label}</span><b>{position === p.id ? '✓' : '○'}</b></button>)}</div><p className="micro">例：自分が後輩なら「後輩」。結果は「後輩から見たあなた」と集計されます。</p></> : <><span className="axis-caption">{axes[currentQ.axis].icon} {axes[currentQ.axis].name}</span><h2>Q{step - 1}. {currentQ.question}</h2><div className="option-list">{currentQ.options.map((o, i) => <button key={i} className={`option ${answered[step - 2] && answers[step - 2] === i ? 'selected' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? i : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}><span>{o.label}</span><b>{answered[step - 2] && answers[step - 2] === i ? '✓' : '○'}</b></button>)}</div>{canSkip && <button className={`skip-button ${answered[step - 2] && answers[step - 2] === -1 ? 'chosen' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? -1 : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}>わからない・判断できない</button>}</>}
+      {error && <p className="alert" role="alert">{error}</p>}
+      <div className="question-actions"><button className="button outline" disabled={step === 0 || submitting} onClick={() => { setStep(s => s - 1); setError(''); }}>← 戻る</button><button className="button primary" disabled={!optionSelected || submitting} onClick={next}>{submitting ? '送信中…' : step === 9 ? '結果を見る ✨' : '次へ →'}</button></div>
+    </section></div></PageShell>;
+}
+function CategoryGroup({ title, summaries, options }: { title: string; summaries: GroupSummary[]; options: readonly { id: string; label: string; emoji: string }[] }) {
+  const active = summaries.map(s => ({ ...s, option: options.find(o => s.key.endsWith(`:${o.id}`)) })).filter(s => s.count > 0);
+  return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores).emoji} {characterFromScores(s.scores).title}</p><Bars scores={s.scores}/></> : <p className="micro">5人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
+}
+function Manage({ id }: { id: string }) {
+  const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token') || '';
+  const [report, setReport] = useState<Report | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const shareUrl = `${location.origin}/s/${id}`;
+  async function load() {
+    setLoading(true);
+    try { const data = await api<Report>(`/surveys/${id}/results`, { headers: { authorization: `Bearer ${token}` } }); setReport(data); setError(''); }
+    catch (e) { setError(e instanceof Error ? e.message : 'データを取得できませんでした'); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id, token]);
+  return <PageShell><div className="manage-header"><div><div className="eyebrow">✦ YOUR RESULTS</div><h1>みんなから見た<br/><em>{report?.name || 'あなた'}</em></h1><p>友達からの回答が集まるほど、見えてくる一面も増えていく。</p></div><div className="count-bubble"><span>回答人数</span><strong>{report?.count ?? '—'}</strong><small>人</small></div></div>{loading ? <div className="panel centered">読み込み中…</div> : error ? <div className="panel centered"><h2>集計を表示できません</h2><p className="alert">{error}</p><p className="micro">作成時の管理リンクを使って開いてね。</p></div> : report && <>
+    <div className="manage-actions"><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary"/><button className="button outline" onClick={() => void load()}>↻ 集計を更新</button></div>
+    {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな"/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, 5 - report.count)} 人で結果が見られる！</h2><p>個人の回答を推測されないよう、5人集まってから総合結果を公開するよ。</p></section>}
+    <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions}/></div>
+    <div className="soft-box managing-note"><b>🔐 管理リンクを大切に</b><p>管理リンクを知っている人は集計を閲覧できます。なくしても再発行できません。回答者ごとの個別回答は保存・表示していません。</p></div>
+  </>}</PageShell>;
+}
+
+function downloadResultCard(target: string, relation: string, scores: number[]) {
+  const c = characterFromScores(scores);
+  const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1350;
+  const ctx = canvas.getContext('2d'); if (!ctx) return;
+  ctx.fillStyle = '#fff8ee'; ctx.fillRect(0, 0, 1080, 1350);
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(66, 72, 948, 1196, 55); ctx.fill();
+  ctx.fillStyle = '#fff9f0'; ctx.beginPath(); ctx.roundRect(93, 99, 894, 1142, 42); ctx.fill();
+  ctx.fillStyle = '#756b72'; ctx.textAlign = 'center'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('TAKO SHINDAN ✦ FROM MY POINT OF VIEW', 540, 185);
+  ctx.font = '240px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; ctx.fillText(c.emoji, 540, 500);
+  ctx.fillStyle = '#4a3945'; ctx.font = 'bold 43px sans-serif'; ctx.fillText(`${relation}から見た${target.slice(0, 12)}`, 540, 638);
+  ctx.font = 'bold 62px sans-serif'; ctx.fillText(c.title, 540, 752, 830);
+  ctx.font = '32px sans-serif'; ctx.fillStyle = '#665966';
+  const words = Array.from(c.description); const length = 25;
+  for (let i = 0; i < words.length; i += length) ctx.fillText(words.slice(i, i + length).join(''), 540, 846 + (i / length) * 48);
+  ctx.fillStyle = '#bdaec0'; ctx.fillRect(180, 1050, 720, 2);
+  ctx.font = 'bold 28px sans-serif'; ctx.fillStyle = '#756b72'; ctx.fillText('あの人から見たあなたは、どんなキャラ？', 540, 1130);
+  ctx.fillText('tako-shindan', 540, 1190);
+  canvas.toBlob(blob => { if (!blob) return; const anchor = document.createElement('a'); const url = URL.createObjectURL(blob); anchor.href = url; anchor.download = 'tako-shindan-result.png'; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 5000); }, 'image/png');
+}
+
+function App() {
+  const path = window.location.pathname.split('/').filter(Boolean);
+  if (path[0] === 's' && /^[a-f0-9]{24}$/.test(path[1] || '')) return <Survey id={path[1]}/>;
+  if (path[0] === 'manage' && /^[a-f0-9]{24}$/.test(path[1] || '')) return <Manage id={path[1]}/>;
+  return <Home/>;
+}
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

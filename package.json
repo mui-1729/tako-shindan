@@ -1,0 +1,30 @@
+{
+  "name": "tako-shindan",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build && concurrently -k -n worker,web -c cyan,magenta \"wrangler dev --port 8787\" \"vite --host 0.0.0.0\"",
+    "build": "tsc -b && vite build",
+    "preview": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261014.1",
+    "@types/node": "22.18.6",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "5.0.4",
+    "concurrently": "9.2.1",
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4",
+    "wrangler": "4.45.0"
+  }
+}
