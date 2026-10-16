@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { normalizeRespondentNickname } from '../src/shared/nickname';
 import { axes, isValidAnswers, positions, relations, scoreAnswers, type Position, type Relation, type Report, type GroupSummary } from '../src/shared/diagnosis';
 
 interface Env {
@@ -8,7 +9,7 @@ interface Env {
 
 type AggregateRow = { group_key: string; members: number; a0: number; a1: number; a2: number; a3: number };
 type ConfigRow = { name: string; owner_hash: string };
-type SubmitData = { relation: Relation; position: Position; answers: number[]; visitorId: string };
+type SubmitData = { relation: Relation; position: Position; answers: number[]; visitorId: string; nickname?: unknown };
 const MIN_PUBLIC_GROUP = 5;
 
 function json(data: unknown, status = 200): Response {
@@ -54,6 +55,11 @@ export class SurveyRoom extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS visitors (
         visitor_hash TEXT PRIMARY KEY
       );
+      CREATE TABLE IF NOT EXISTS respondent_names (
+        visitor_hash TEXT PRIMARY KEY,
+        nickname TEXT NOT NULL,
+        submitted_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS aggregates (
         group_key TEXT PRIMARY KEY,
         members INTEGER NOT NULL,
@@ -89,6 +95,7 @@ export class SurveyRoom extends DurableObject<Env> {
       return { accepted: false, reason: 'invalid' };
     }
     if (!this.publicInfo()) return { accepted: false, reason: 'not_found' };
+    const nickname = normalizeRespondentNickname(payload.nickname);
     const scores = scoreAnswers(payload.answers, this.surveyVersion());
     const fingerprint = await sha256(`${this.ctx.id.toString()}:${payload.visitorId}`);
     let alreadyAnswered = false;
@@ -96,6 +103,11 @@ export class SurveyRoom extends DurableObject<Env> {
       const sql = this.ctx.storage.sql;
       const inserted = sql.exec('INSERT OR IGNORE INTO visitors (visitor_hash) VALUES (?)', fingerprint);
       if (inserted.rowsWritten === 0) { alreadyAnswered = true; return; }
+      if (nickname) {
+        // Opt-in recognition only: no relationship, scores or answers attached.
+        sql.exec('INSERT INTO respondent_names (visitor_hash, nickname, submitted_at) VALUES (?, ?, ?)',
+          fingerprint, nickname, Date.now());
+      }
       for (const key of ['all', `relation:${payload.relation}`, `position:${payload.position}`]) {
         sql.exec(`INSERT INTO aggregates (group_key, members, a0, a1, a2, a3) VALUES (?, 1, ?, ?, ?, ?)
           ON CONFLICT(group_key) DO UPDATE SET
@@ -112,6 +124,9 @@ export class SurveyRoom extends DurableObject<Env> {
     if (!config) return null;
     if (typeof token !== 'string' || token.length !== 64 || await sha256(token) !== config.owner_hash) return 'forbidden';
     const rows = this.ctx.storage.sql.exec('SELECT group_key, members, a0, a1, a2, a3 FROM aggregates').toArray() as AggregateRow[];
+    const named = this.ctx.storage.sql.exec('SELECT COUNT(*) as n FROM respondent_names').toArray()[0] as { n: number };
+    const respondents = this.ctx.storage.sql.exec('SELECT nickname FROM respondent_names ORDER BY submitted_at DESC LIMIT 100')
+      .toArray() as { nickname: string }[];
     const groups = new Map(rows.map(row => [row.group_key, row]));
     const summary = (key: string): GroupSummary => {
       const row = groups.get(key);
@@ -131,6 +146,7 @@ export class SurveyRoom extends DurableObject<Env> {
       total,
       relations: relations.map(r => summary(`relation:${r.id}`)),
       positions: positions.map(p => summary(`position:${p.id}`)),
+      respondents: { namedCount: named.n, nicknames: respondents.map(row => row.nickname) },
     };
   }
 }
