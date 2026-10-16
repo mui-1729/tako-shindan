@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { normalizeRespondentNickname } from '../src/shared/nickname';
-import { axes, isValidAnswers, positions, relations, scoreAnswers, type Position, type Relation, type Report, type GroupSummary } from '../src/shared/diagnosis';
+import { axes, canShowGroupScore, isValidAnswers, positions, relations, scoreAnswers, type Position, type Relation, type Report, type GroupSummary } from '../src/shared/diagnosis';
 
 interface Env {
   SURVEYS: DurableObjectNamespace<SurveyRoom>;
@@ -10,7 +10,6 @@ interface Env {
 type AggregateRow = { group_key: string; members: number; a0: number; a1: number; a2: number; a3: number };
 type ConfigRow = { name: string; owner_hash: string };
 type SubmitData = { relation: Relation; position: Position; answers: number[]; visitorId: string; nickname?: unknown };
-const MIN_PUBLIC_GROUP = 5;
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -134,7 +133,7 @@ export class SurveyRoom extends DurableObject<Env> {
       return {
         key,
         count: row.members,
-        scores: row.members >= MIN_PUBLIC_GROUP ? axes.map((_, i) =>
+        scores: canShowGroupScore(row.members) ? axes.map((_, i) =>
           Math.round((row[`a${i}` as keyof AggregateRow] as number) / row.members)) : null,
       };
     };
