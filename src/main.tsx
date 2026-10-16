@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { characterImage } from './shared/characterArt';
-import { axes, axesForVersion, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
+import { axesForVersion, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
 type PublicInfo = { name: string; count: number; version: DiagnosisVersion };
