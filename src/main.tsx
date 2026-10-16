@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { characterImage } from './shared/characterArt';
-import { axes, characterFromScores, isValidAnswers, positions, questions, relations, scoreAnswers, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
+import { axes, axesForVersion, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
-type PublicInfo = { name: string; count: number };
+type PublicInfo = { name: string; count: number; version: DiagnosisVersion };
 type Created = { id: string; token: string; name: string };
 type LocalSurvey = { name: string; ownerUrl: string; shareUrl: string };
 
@@ -39,18 +39,18 @@ function ToastButton({ text, label, className = '' }: { text: string; label: str
   const [done, setDone] = useState(false);
   return <button className={`button ${className}`} onClick={async () => { try { await copy(text); setDone(true); window.setTimeout(() => setDone(false), 2200); } catch { window.prompt('こちらのURLをコピーしてください', text); } }}>{done ? '✓ コピーしました' : label}</button>;
 }
-function CharacterDisplay({ scores, target, perspective }: { scores: number[]; target?: string; perspective?: string }) {
-  const ch = characterFromScores(scores);
+function CharacterDisplay({ scores, target, perspective, version = 2 }: { scores: number[]; target?: string; perspective?: string; version?: DiagnosisVersion }) {
+  const ch = characterFromScores(scores, version);
   return <div className="character-card" style={{ '--character-color': ch.color } as React.CSSProperties}>
     <div className="character-topline">FROM MY POINT OF VIEW <span>TYPE {ch.code}</span></div>
-    <div className="character-illustration"><img src={characterImage(ch.index)} alt={`${ch.title}のタコキャラクター`} width="290" height="290" /></div>
+    <div className="character-illustration"><img src={characterImage(ch.index, version)} alt={`${ch.title}のタコキャラクター`} width="290" height="290" /></div>
     <p className="character-kicker">{target ? `${perspective || 'みんな'}から見た${target}` : 'あなたから見たこの人'}</p>
     <h2>{ch.title}</h2><p className="character-desc">{ch.description}</p>
     <div className="character-footer">TAKO SHINDAN <span>✦ MY CHARACTER ✦</span></div>
   </div>;
 }
-function Bars({ scores }: { scores: number[] }) {
-  return <div className="bars">{axes.map((axis, index) => <div className="bar-row" key={axis.name}>
+function Bars({ scores, version = 2 }: { scores: number[]; version?: DiagnosisVersion }) {
+  return <div className="bars">{axesForVersion(version).map((axis, index) => <div className="bar-row" key={axis.name}>
     <div className="bar-title"><b>{axis.icon} {axis.name}</b><span>{Math.round(scores[index])} / 100</span></div>
     <div className="bar-track"><span style={{ width: `${scores[index]}%` }} /></div>
     <div className="bar-ends"><span>{axis.left}</span><span>{axis.right}</span></div>
@@ -96,6 +96,8 @@ function Survey({ id }: { id: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [finished, setFinished] = useState(false);
   const [resultScores, setResultScores] = useState<number[]>([]);
+  const version: DiagnosisVersion = info?.version === 1 ? 1 : 2;
+  const surveyQuestions = questionsForVersion(version);
   useEffect(() => { api<PublicInfo>(`/surveys/${id}`).then(setInfo).catch(e => setError(e.message)).finally(() => setLoading(false)); }, [id]);
   const optionSelected = step === 0 ? relation !== null : step === 1 ? position !== null : answered[step - 2];
   const canFinish = isValidAnswers(answers);
@@ -108,26 +110,27 @@ function Survey({ id }: { id: string }) {
     setSubmitting(true);
     try {
       await api(`/surveys/${id}/answers`, { method: 'POST', body: JSON.stringify({ relation, position, answers, visitorId: visitorIdFor(id) }) });
-      setResultScores(scoreAnswers(answers)); setFinished(true);
+      setResultScores(scoreAnswers(answers, version)); setFinished(true);
     } catch (e) { setError(e instanceof Error ? e.message : '送信できませんでした'); }
     finally { setSubmitting(false); }
   }
   const perspective = relation ? relations.find(r => r.id === relation)?.label : '友達';
   if (loading) return <PageShell><div className="panel centered"><h2>読み込み中… 🐙</h2></div></PageShell>;
   if (!info) return <PageShell><div className="panel centered"><h2>診断リンクが見つかりません</h2><p className="alert">{error}</p><a href="/" className="button primary">トップへ戻る</a></div></PageShell>;
-  if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective}/><p className="micro">※ 16種類のオリジナルキャラクターは今後さらにデザインを調整する予定です。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
-  const currentQ = questions[step - 2];
-  return <PageShell><div className="survey-layout"><div className="survey-intro"><div className="eyebrow">✦ FROM YOUR POINT OF VIEW</div><h1><em>{info.name}</em>って<br/>どんな人？</h1><p>あなたから見た印象を教えてね。<br/>正解・不正解はないよ！</p><div className="mini-characters">🦊 🐙 🐰</div><p className="micro">現在 {info.count} 人が回答済み</p></div><section className="panel question-panel"><div className="question-meta"><span>{step < 2 ? '関係性について' : '性格について'}</span><strong>{step + 1} <small>/ 10</small></strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }}/></div>{step === 0 ? <><h2>この人とはどんな関係？</h2><p className="subtle">一番近いものを選んでね</p><div className="option-list">{relations.map(r => <button key={r.id} className={`option ${relation === r.id ? 'selected' : ''}`} onClick={() => setRelation(r.id)}><span>{r.emoji} {r.label}</span><b>{relation === r.id ? '✓' : '○'}</b></button>)}</div></> : step === 1 ? <><h2>あなたは、この人の？</h2><p className="subtle">自分から見た立場を選んでね</p><div className="option-list">{positions.map(p => <button key={p.id} className={`option ${position === p.id ? 'selected' : ''}`} onClick={() => setPosition(p.id)}><span>{p.emoji} {p.label}</span><b>{position === p.id ? '✓' : '○'}</b></button>)}</div><p className="micro">例：自分が後輩なら「後輩」。結果は「後輩から見たあなた」と集計されます。</p></> : <><span className="axis-caption">{axes[currentQ.axis].icon} {axes[currentQ.axis].name}</span><h2>Q{step - 1}. {currentQ.question}</h2><div className="option-list">{currentQ.options.map((o, i) => <button key={i} className={`option ${answered[step - 2] && answers[step - 2] === i ? 'selected' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? i : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}><span>{o.label}</span><b>{answered[step - 2] && answers[step - 2] === i ? '✓' : '○'}</b></button>)}</div>{canSkip && <button className={`skip-button ${answered[step - 2] && answers[step - 2] === -1 ? 'chosen' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? -1 : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}>わからない・判断できない</button>}</>}
+  if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective} version={version}/><p className="micro">※ 16種類のオリジナルキャラクターは今後さらにデザインを調整する予定です。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores} version={version}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores,version).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores, version)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
+  const currentQ = surveyQuestions[step - 2];
+  return <PageShell><div className="survey-layout"><div className="survey-intro"><div className="eyebrow">✦ FROM YOUR POINT OF VIEW</div><h1><em>{info.name}</em>って<br/>どんな人？</h1><p>あなたから見た印象を教えてね。<br/>正解・不正解はないよ！</p><div className="mini-characters">🦊 🐙 🐰</div><p className="micro">現在 {info.count} 人が回答済み</p></div><section className="panel question-panel"><div className="question-meta"><span>{step < 2 ? '関係性について' : '性格について'}</span><strong>{step + 1} <small>/ 10</small></strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }}/></div>{step === 0 ? <><h2>この人とはどんな関係？</h2><p className="subtle">一番近いものを選んでね</p><div className="option-list">{relations.map(r => <button key={r.id} className={`option ${relation === r.id ? 'selected' : ''}`} onClick={() => setRelation(r.id)}><span>{r.emoji} {r.label}</span><b>{relation === r.id ? '✓' : '○'}</b></button>)}</div></> : step === 1 ? <><h2>あなたは、この人の？</h2><p className="subtle">自分から見た立場を選んでね</p><div className="option-list">{positions.map(p => <button key={p.id} className={`option ${position === p.id ? 'selected' : ''}`} onClick={() => setPosition(p.id)}><span>{p.emoji} {p.label}</span><b>{position === p.id ? '✓' : '○'}</b></button>)}</div><p className="micro">例：自分が後輩なら「後輩」。結果は「後輩から見たあなた」と集計されます。</p></> : <><span className="axis-caption">{axesForVersion(version)[currentQ.axis].icon} {axesForVersion(version)[currentQ.axis].name}</span><h2>Q{step - 1}. {currentQ.question}</h2><div className="option-list">{currentQ.options.map((o, i) => <button key={i} className={`option ${answered[step - 2] && answers[step - 2] === i ? 'selected' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? i : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}><span>{o.label}</span><b>{answered[step - 2] && answers[step - 2] === i ? '✓' : '○'}</b></button>)}</div>{canSkip && <button className={`skip-button ${answered[step - 2] && answers[step - 2] === -1 ? 'chosen' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? -1 : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}>わからない・判断できない</button>}</>}
       {error && <p className="alert" role="alert">{error}</p>}
       <div className="question-actions"><button className="button outline" disabled={step === 0 || submitting} onClick={() => { setStep(s => s - 1); setError(''); }}>← 戻る</button><button className="button primary" disabled={!optionSelected || submitting} onClick={next}>{submitting ? '送信中…' : step === 9 ? '結果を見る ✨' : '次へ →'}</button></div>
     </section></div></PageShell>;
 }
-function CategoryGroup({ title, summaries, options }: { title: string; summaries: GroupSummary[]; options: readonly { id: string; label: string; emoji: string }[] }) {
+function CategoryGroup({ title, summaries, options, version = 2 }: { title: string; summaries: GroupSummary[]; options: readonly { id: string; label: string; emoji: string }[]; version?: DiagnosisVersion }) {
   const active = summaries.map(s => ({ ...s, option: options.find(o => s.key.endsWith(`:${o.id}`)) })).filter(s => s.count > 0);
-  return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores).emoji} {characterFromScores(s.scores).title}</p><Bars scores={s.scores}/></> : <p className="micro">5人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
+  return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores, version).emoji} {characterFromScores(s.scores, version).title}</p><Bars scores={s.scores} version={version}/></> : <p className="micro">5人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
 }
 function MultiPerspectiveProfile({ report }: { report: Report }) {
   if (!report.total.scores) return null;
+  const axisLabels = axesForVersion(report.version);
   const available = [
     { title: '関係性', rows: report.relations, options: relations },
     { title: '立場', rows: report.positions, options: positions },
@@ -139,7 +142,7 @@ function MultiPerspectiveProfile({ report }: { report: Report }) {
       .filter(r => r.scores !== null && r.count >= 5)
       .map(r => ({ ...r, scores: r.scores!, label: category.options.find(o => r.key.endsWith(':' + o.id))?.label || r.key }));
     if (visible.length < 2) continue;
-    for (let axis = 0; axis < axes.length; axis++) {
+    for (let axis = 0; axis < axisLabels.length; axis++) {
       const sorted = [...visible].sort((a, b) => a.scores[axis] - b.scores[axis]);
       const low = sorted[0], high = sorted[sorted.length - 1];
       comparisons.push({ axis, difference: Math.round(high.scores[axis] - low.scores[axis]), group: category.title,
@@ -148,7 +151,7 @@ function MultiPerspectiveProfile({ report }: { report: Report }) {
   }
   comparisons.sort((a, b) => b.difference - a.difference);
   const biggest = comparisons[0];
-  const core = characterFromScores(report.total.scores);
+  const core = characterFromScores(report.total.scores, report.version);
   const personality = biggest && biggest.difference >= 20 ? 'いろんな顔を持つタイプ' :
     comparisons.length ? 'どこでも自分らしいタイプ' : 'これから見えてくるタイプ';
   return <section className="panel multi-perspective">
@@ -160,9 +163,9 @@ function MultiPerspectiveProfile({ report }: { report: Report }) {
       <div><span className="identity-label">印象の広がり</span><strong>{personality}</strong></div>
     </div>
     {biggest ? <div className="identity-difference">
-      <b>🔎 {biggest.group}によって最も印象が違うのは「{axes[biggest.axis].name}」</b>
-      <p>「{biggest.low}」からは{axes[biggest.axis].left}寄り（{biggest.lowScore}点）、
-      「{biggest.high}」からは{axes[biggest.axis].right}寄り（{biggest.highScore}点）に見られているよ。</p>
+      <b>🔎 {biggest.group}によって最も印象が違うのは「{axisLabels[biggest.axis].name}」</b>
+      <p>「{biggest.low}」からは{axisLabels[biggest.axis].left}寄り（{biggest.lowScore}点）、
+      「{biggest.high}」からは{axisLabels[biggest.axis].right}寄り（{biggest.highScore}点）に見られているよ。</p>
       <p className="micro">この差はあくまで回答者の印象の違い。性格が実際に変わるという意味ではないよ。</p>
     </div> : <p className="micro">関係性や立場ごとに5人以上の回答が2グループ集まると、どの視点で印象が違うのかを比較できるよ。</p>}
     <p className="micro">診断結果は娯楽用の印象分析です。性格を科学的に確定するものではありません。</p>
@@ -183,15 +186,15 @@ function Manage({ id }: { id: string }) {
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id, token]);
   return <PageShell><div className="manage-header"><div><div className="eyebrow">✦ YOUR RESULTS</div><h1>みんなから見た<br/><em>{report?.name || 'あなた'}</em></h1><p>友達からの回答が集まるほど、見えてくる一面も増えていく。</p></div><div className="count-bubble"><span>回答人数</span><strong>{report?.count ?? '—'}</strong><small>人</small></div></div>{loading ? <div className="panel centered">読み込み中…</div> : error ? <div className="panel centered"><h2>集計を表示できません</h2><p className="alert">{error}</p><p className="micro">作成時の管理リンクを使って開いてね。</p></div> : report && <>
     <div className="manage-actions"><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary"/><button className="button outline" onClick={() => void load()}>↻ 集計を更新</button></div>
-    {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな"/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, 5 - report.count)} 人で結果が見られる！</h2><p>個人の回答を推測されないよう、5人集まってから総合結果を公開するよ。</p></section>}
+    {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな" version={report.version}/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores} version={report.version}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, 5 - report.count)} 人で結果が見られる！</h2><p>個人の回答を推測されないよう、5人集まってから総合結果を公開するよ。</p></section>}
     {report.total.scores && <MultiPerspectiveProfile report={report} />}
-    <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions}/></div>
+    <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations} version={report.version}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions} version={report.version}/></div>
     <div className="soft-box managing-note"><b>🔐 管理リンクを大切に</b><p>管理リンクを知っている人は集計を閲覧できます。なくしても再発行できません。回答者ごとの個別回答は保存・表示していません。</p></div>
   </>}</PageShell>;
 }
 
-async function downloadResultCard(target: string, relation: string, scores: number[]) {
-  const c = characterFromScores(scores);
+async function downloadResultCard(target: string, relation: string, scores: number[], version: DiagnosisVersion = 2) {
+  const c = characterFromScores(scores, version);
   const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1350;
   const ctx = canvas.getContext('2d'); if (!ctx) return;
   ctx.fillStyle = '#fff8ee'; ctx.fillRect(0, 0, 1080, 1350);
@@ -199,7 +202,7 @@ async function downloadResultCard(target: string, relation: string, scores: numb
   ctx.fillStyle = '#fff9f0'; ctx.beginPath(); ctx.roundRect(93, 99, 894, 1142, 42); ctx.fill();
   ctx.fillStyle = '#756b72'; ctx.textAlign = 'center'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('TAKO SHINDAN ✦ FROM MY POINT OF VIEW', 540, 185);
   const mascot = new Image();
-  mascot.src = characterImage(c.index);
+  mascot.src = characterImage(c.index,version);
   await new Promise<void>(resolve => { mascot.onload = () => resolve(); mascot.onerror = () => resolve(); if (mascot.complete) resolve(); });
   if (mascot.naturalWidth) ctx.drawImage(mascot, 358, 246, 365, 365);
   else { ctx.font = '240px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; ctx.fillText(c.emoji, 540, 500); }
