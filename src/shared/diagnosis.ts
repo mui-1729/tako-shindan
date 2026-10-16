@@ -85,6 +85,12 @@ export const legacyCharacters = [
  *
  * Existing v1 surveys still use the legacy item wording, labels and scoring.
  */
+/** Minimum independent responses before revealing a group's score or type. */
+export const MIN_PUBLIC_GROUP = 3;
+export function canShowGroupScore(count: number): boolean {
+  return Number.isInteger(count) && count >= MIN_PUBLIC_GROUP;
+}
+
 export type DiagnosisVersion = 1 | 2;
 export const axes = [
   { name: '会話の入り方', left: '自分から話す', right: '様子を見て聞く', icon: '💬' },
