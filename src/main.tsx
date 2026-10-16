@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { characterImage } from './shared/characterArt';
+import { observedTendencies, resultSampleNote, storyFromScores } from './shared/resultNarrative';
 import { MIN_PUBLIC_GROUP, axesForVersion, canShowGroupScore, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
@@ -41,11 +42,15 @@ function ToastButton({ text, label, className = '' }: { text: string; label: str
 }
 function CharacterDisplay({ scores, target, perspective, version = 2 }: { scores: number[]; target?: string; perspective?: string; version?: DiagnosisVersion }) {
   const ch = characterFromScores(scores, version);
+  const story = storyFromScores(scores, version);
   return <div className="character-card" style={{ '--character-color': ch.color } as React.CSSProperties}>
     <div className="character-topline">FROM MY POINT OF VIEW <span>TYPE {ch.code}</span></div>
     <div className="character-illustration"><img src={characterImage(ch.index, version)} alt={`${ch.title}のタコキャラクター`} width="290" height="290" /></div>
     <p className="character-kicker">{target ? `${perspective || 'みんな'}から見た${target}` : 'あなたから見たこの人'}</p>
-    <h2>{ch.title}</h2><p className="character-desc">{ch.description}</p>
+    <h2>{ch.title}</h2>
+    {story && <p className="character-tagline">{story.tagline}</p>}
+    <p className="character-desc">{ch.description}</p>
+    {story && <div className="character-traits">{story.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
     <div className="character-footer">TAKO SHINDAN <span>✦ MY CHARACTER ✦</span></div>
   </div>;
 }
@@ -55,6 +60,26 @@ function Bars({ scores, version = 2 }: { scores: number[]; version?: DiagnosisVe
     <div className="bar-track"><span style={{ width: `${scores[index]}%` }} /></div>
     <div className="bar-ends"><span>{axis.left}</span><span>{axis.right}</span></div>
   </div>)}</div>;
+}
+function TypeDeepDive({ scores, version = 2, count }: { scores: number[]; version?: DiagnosisVersion; count?: number }) {
+  const story = storyFromScores(scores, version);
+  if (!story) return null;
+  const tendencies = observedTendencies(scores, version);
+  return <div className="type-deep-dive">
+    <div className="section-label">✦ BEYOND THE TYPE</div>
+    <h3>もっと詳しく見ると…</h3>
+    <p className="type-story-impression">{story.impression}</p>
+    <div className="story-points">
+      <div><span>✨ こんな場面で輝く</span><p>{story.scene}</p></div>
+      <div><span>🔎 意外な一面</span><p>{story.surprise}</p></div>
+    </div>
+    {tendencies.length > 0 && <div className="type-observations">
+      <b>特に印象に出ているところ</b>
+      {tendencies.slice(0, 2).map(t => <p key={t.axis}><strong>{t.axis}</strong> — {t.phrase}</p>)}
+    </div>}
+    {count !== undefined && <p className="micro">{resultSampleNote(count)}</p>}
+    <p className="micro">診断は周囲が見た行動の傾向を遊びとして表現したもの。人柄や能力を確定するものではありません。</p>
+  </div>;
 }
 function Home() {
   const [name, setName] = useState('');
@@ -118,7 +143,7 @@ function Survey({ id }: { id: string }) {
   const perspective = relation ? relations.find(r => r.id === relation)?.label : '友達';
   if (loading) return <PageShell><div className="panel centered"><h2>読み込み中… 🐙</h2></div></PageShell>;
   if (!info) return <PageShell><div className="panel centered"><h2>診断リンクが見つかりません</h2><p className="alert">{error}</p><a href="/" className="button primary">トップへ戻る</a></div></PageShell>;
-  if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective} version={version}/><p className="micro">※ 16種類のオリジナルキャラクターは今後さらにデザインを調整する予定です。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores} version={version}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores,version).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores, version)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
+  if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective} version={version}/><p className="micro">※ 16種類のオリジナルキャラクターは今後さらにデザインを調整する予定です。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores} version={version}/><TypeDeepDive scores={resultScores} version={version}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores,version).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores, version)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
   const currentQ = surveyQuestions[step - 2];
   return <PageShell><div className="survey-layout"><div className="survey-intro"><div className="eyebrow">✦ FROM YOUR POINT OF VIEW</div><h1><em>{info.name}</em>って<br/>どんな人？</h1><p>あなたから見た印象を教えてね。<br/>正解・不正解はないよ！</p><div className="respondent-field"><label htmlFor="respondent-name">あなたのニックネーム（任意）</label><input id="respondent-name" value={respondentNickname} onChange={e => setRespondentNickname(e.target.value)} maxLength={20} placeholder="例：りん / 空欄なら匿名"/><p>入力した名前は診断される本人の管理画面に表示されます。回答内容やタイプは公開されません。</p></div><div className="mini-characters">🦊 🐙 🐰</div><p className="micro">現在 {info.count} 人が回答済み</p></div><section className="panel question-panel"><div className="question-meta"><span>{step < 2 ? '関係性について' : '性格について'}</span><strong>{step + 1} <small>/ 10</small></strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }}/></div>{step === 0 ? <><h2>この人とはどんな関係？</h2><p className="subtle">一番近いものを選んでね</p><div className="option-list">{relations.map(r => <button key={r.id} className={`option ${relation === r.id ? 'selected' : ''}`} onClick={() => setRelation(r.id)}><span>{r.emoji} {r.label}</span><b>{relation === r.id ? '✓' : '○'}</b></button>)}</div></> : step === 1 ? <><h2>あなたは、この人の？</h2><p className="subtle">自分から見た立場を選んでね</p><div className="option-list">{positions.map(p => <button key={p.id} className={`option ${position === p.id ? 'selected' : ''}`} onClick={() => setPosition(p.id)}><span>{p.emoji} {p.label}</span><b>{position === p.id ? '✓' : '○'}</b></button>)}</div><p className="micro">例：自分が後輩なら「後輩」。結果は「後輩から見たあなた」と集計されます。</p></> : <><span className="axis-caption">{axesForVersion(version)[currentQ.axis].icon} {axesForVersion(version)[currentQ.axis].name}</span><h2>Q{step - 1}. {currentQ.question}</h2><div className="option-list">{currentQ.options.map((o, i) => <button key={i} className={`option ${answered[step - 2] && answers[step - 2] === i ? 'selected' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? i : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}><span>{o.label}</span><b>{answered[step - 2] && answers[step - 2] === i ? '✓' : '○'}</b></button>)}</div>{canSkip && <button className={`skip-button ${answered[step - 2] && answers[step - 2] === -1 ? 'chosen' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? -1 : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}>わからない・判断できない</button>}</>}
       {error && <p className="alert" role="alert">{error}</p>}
@@ -127,7 +152,7 @@ function Survey({ id }: { id: string }) {
 }
 function CategoryGroup({ title, summaries, options, version = 2 }: { title: string; summaries: GroupSummary[]; options: readonly { id: string; label: string; emoji: string }[]; version?: DiagnosisVersion }) {
   const active = summaries.map(s => ({ ...s, option: options.find(o => s.key.endsWith(`:${o.id}`)) })).filter(s => s.count > 0);
-  return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores, version).emoji} {characterFromScores(s.scores, version).title}</p><Bars scores={s.scores} version={version}/></> : <p className="micro">{MIN_PUBLIC_GROUP}人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
+  return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores, version).emoji} {characterFromScores(s.scores, version).title}</p><p className="group-story">{storyFromScores(s.scores, version)?.tagline}</p><Bars scores={s.scores} version={version}/>{s.count < 6 && <p className="micro">少人数の結果です。回答が増えると傾向が変わることがあります。</p>}</> : <p className="micro">{MIN_PUBLIC_GROUP}人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
 }
 function MultiPerspectiveProfile({ report }: { report: Report }) {
   if (!report.total.scores) return null;
@@ -158,7 +183,7 @@ function MultiPerspectiveProfile({ report }: { report: Report }) {
   return <section className="panel multi-perspective">
     <div className="section-label">✦ YOUR COMPLETE PORTRAIT</div>
     <h2>みんなの視点を重ねた、あなたの輪郭</h2>
-    <p className="subtle">あなたを知る一人ひとりの印象を、1回答につき1票としてまとめた最終プロフィール。</p>
+    <p className="subtle">あなたを知る一人ひとりの印象を、1回答につき1票としてまとめた最終プロフィール。</p><p className="micro">{resultSampleNote(report.count)}</p>
     <div className="identity-summary">
       <div><span className="identity-label">最終キャラクター</span><strong>{core.title}</strong></div>
       <div><span className="identity-label">印象の広がり</span><strong>{personality}</strong></div>
@@ -167,7 +192,7 @@ function MultiPerspectiveProfile({ report }: { report: Report }) {
       <b>🔎 {biggest.group}によって最も印象が違うのは「{axisLabels[biggest.axis].name}」</b>
       <p>「{biggest.low}」からは{axisLabels[biggest.axis].left}寄り（{biggest.lowScore}点）、
       「{biggest.high}」からは{axisLabels[biggest.axis].right}寄り（{biggest.highScore}点）に見られているよ。</p>
-      <p className="micro">この差はあくまで回答者の印象の違い。性格が実際に変わるという意味ではないよ。</p>
+      <p className="micro">この差は関係性ごとの平均値の比較で、個人の回答や真の性格を示すものではありません。特に人数が少ないグループでは参考程度に見てね。</p>
     </div> : <p className="micro">関係性や立場ごとに{MIN_PUBLIC_GROUP}人以上の回答が2グループ集まると、どの視点で印象が違うのかを比較できるよ。</p>}
     <p className="micro">診断結果は娯楽用の印象分析です。性格を科学的に確定するものではありません。</p>
   </section>;
@@ -187,7 +212,7 @@ function Manage({ id }: { id: string }) {
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id, token]);
   return <PageShell><div className="manage-header"><div><div className="eyebrow">✦ YOUR RESULTS</div><h1>みんなから見た<br/><em>{report?.name || 'あなた'}</em></h1><p>友達からの回答が集まるほど、見えてくる一面も増えていく。</p></div><div className="count-bubble"><span>回答人数</span><strong>{report?.count ?? '—'}</strong><small>人</small></div></div>{loading ? <div className="panel centered">読み込み中…</div> : error ? <div className="panel centered"><h2>集計を表示できません</h2><p className="alert">{error}</p><p className="micro">作成時の管理リンクを使って開いてね。</p></div> : report && <>
     <div className="manage-actions"><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary"/><button className="button outline" onClick={() => void load()}>↻ 集計を更新</button></div>
-    {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな" version={report.version}/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores} version={report.version}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, MIN_PUBLIC_GROUP - report.count)} 人で結果が見られる！</h2><p>回答が{MIN_PUBLIC_GROUP}人集まったら総合結果を公開するよ。少人数の集計なので印象にはばらつきがあるよ。</p></section>}
+    {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな" version={report.version}/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores} version={report.version}/><TypeDeepDive scores={report.total.scores} version={report.version} count={report.count}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, MIN_PUBLIC_GROUP - report.count)} 人で結果が見られる！</h2><p>回答が{MIN_PUBLIC_GROUP}人集まったら総合結果を公開するよ。少人数の集計なので印象にはばらつきがあるよ。</p></section>}
     {report.total.scores && <MultiPerspectiveProfile report={report} />}
     {report.respondents && <section className="panel respondent-list"><div className="section-label">✦ THANK YOU FOR ANSWERING</div><h2>💌 回答してくれた人</h2><p className="subtle">ニックネームを入力した {report.respondents.namedCount} 人 / 匿名 {Math.max(0, report.count - report.respondents.namedCount)} 人</p>{report.respondents.nicknames.length > 0 ? <div className="respondent-chips">{report.respondents.nicknames.map((name, i) => <span key={i}>{name}</span>)}</div> : <p className="micro">まだニックネーム付きの回答はありません。</p>}{report.respondents.namedCount > report.respondents.nicknames.length && <p className="micro">最新100件のニックネームを表示しています。</p>}<p className="micro">ニックネームは回答者が希望した場合だけ表示。誰がどの選択肢を選んだかは分かりません。</p></section>}
     <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations} version={report.version}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions} version={report.version}/></div>
