@@ -126,6 +126,48 @@ function CategoryGroup({ title, summaries, options }: { title: string; summaries
   const active = summaries.map(s => ({ ...s, option: options.find(o => s.key.endsWith(`:${o.id}`)) })).filter(s => s.count > 0);
   return <section className="panel result-section"><h3>{title}</h3>{active.length ? <div className="group-list">{active.map(s => <div className="group-card" key={s.key}><div className="group-title"><b>{s.option?.emoji} {s.option?.label}</b><span>{s.count}人</span></div>{s.scores ? <><p className="group-type">{characterFromScores(s.scores).emoji} {characterFromScores(s.scores).title}</p><Bars scores={s.scores}/></> : <p className="micro">5人以上集まるとタイプとスコアを表示します。</p>}</div>)}</div> : <p className="subtle">この分類の回答はまだありません。</p>}</section>;
 }
+function MultiPerspectiveProfile({ report }: { report: Report }) {
+  if (!report.total.scores) return null;
+  const available = [
+    { title: '関係性', rows: report.relations, options: relations },
+    { title: '立場', rows: report.positions, options: positions },
+  ];
+  type Difference = { axis: number; difference: number; group: string; low: string; high: string; lowScore: number; highScore: number };
+  const comparisons: Difference[] = [];
+  for (const category of available) {
+    const visible = category.rows
+      .filter(r => r.scores !== null && r.count >= 5)
+      .map(r => ({ ...r, scores: r.scores!, label: category.options.find(o => r.key.endsWith(':' + o.id))?.label || r.key }));
+    if (visible.length < 2) continue;
+    for (let axis = 0; axis < axes.length; axis++) {
+      const sorted = [...visible].sort((a, b) => a.scores[axis] - b.scores[axis]);
+      const low = sorted[0], high = sorted[sorted.length - 1];
+      comparisons.push({ axis, difference: Math.round(high.scores[axis] - low.scores[axis]), group: category.title,
+        low: low.label, high: high.label, lowScore: Math.round(low.scores[axis]), highScore: Math.round(high.scores[axis]) });
+    }
+  }
+  comparisons.sort((a, b) => b.difference - a.difference);
+  const biggest = comparisons[0];
+  const core = characterFromScores(report.total.scores);
+  const personality = biggest && biggest.difference >= 20 ? 'いろんな顔を持つタイプ' :
+    comparisons.length ? 'どこでも自分らしいタイプ' : 'これから見えてくるタイプ';
+  return <section className="panel multi-perspective">
+    <div className="section-label">✦ YOUR COMPLETE PORTRAIT</div>
+    <h2>みんなの視点を重ねた、あなたの輪郭</h2>
+    <p className="subtle">あなたを知る一人ひとりの印象を、1回答につき1票としてまとめた最終プロフィール。</p>
+    <div className="identity-summary">
+      <div><span className="identity-label">最終キャラクター</span><strong>{core.title}</strong></div>
+      <div><span className="identity-label">印象の広がり</span><strong>{personality}</strong></div>
+    </div>
+    {biggest ? <div className="identity-difference">
+      <b>🔎 {biggest.group}によって最も印象が違うのは「{axes[biggest.axis].name}」</b>
+      <p>「{biggest.low}」からは{axes[biggest.axis].left}寄り（{biggest.lowScore}点）、
+      「{biggest.high}」からは{axes[biggest.axis].right}寄り（{biggest.highScore}点）に見られているよ。</p>
+      <p className="micro">この差はあくまで回答者の印象の違い。性格が実際に変わるという意味ではないよ。</p>
+    </div> : <p className="micro">関係性や立場ごとに5人以上の回答が2グループ集まると、どの視点で印象が違うのかを比較できるよ。</p>}
+    <p className="micro">診断結果は娯楽用の印象分析です。性格を科学的に確定するものではありません。</p>
+  </section>;
+}
 function Manage({ id }: { id: string }) {
   const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token') || '';
   const [report, setReport] = useState<Report | null>(null);
@@ -142,6 +184,7 @@ function Manage({ id }: { id: string }) {
   return <PageShell><div className="manage-header"><div><div className="eyebrow">✦ YOUR RESULTS</div><h1>みんなから見た<br/><em>{report?.name || 'あなた'}</em></h1><p>友達からの回答が集まるほど、見えてくる一面も増えていく。</p></div><div className="count-bubble"><span>回答人数</span><strong>{report?.count ?? '—'}</strong><small>人</small></div></div>{loading ? <div className="panel centered">読み込み中…</div> : error ? <div className="panel centered"><h2>集計を表示できません</h2><p className="alert">{error}</p><p className="micro">作成時の管理リンクを使って開いてね。</p></div> : report && <>
     <div className="manage-actions"><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary"/><button className="button outline" onClick={() => void load()}>↻ 集計を更新</button></div>
     {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな"/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, 5 - report.count)} 人で結果が見られる！</h2><p>個人の回答を推測されないよう、5人集まってから総合結果を公開するよ。</p></section>}
+    {report.total.scores && <MultiPerspectiveProfile report={report} />}
     <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions}/></div>
     <div className="soft-box managing-note"><b>🔐 管理リンクを大切に</b><p>管理リンクを知っている人は集計を閲覧できます。なくしても再発行できません。回答者ごとの個別回答は保存・表示していません。</p></div>
   </>}</PageShell>;
