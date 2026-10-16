@@ -101,21 +101,21 @@ export function animalSvg(index: number): string {
   const eyes = i === 13 || i === 14 || i === 7
     ? '' : '<ellipse cx="137" cy="159" rx="6" ry="8" fill="#584452"/><ellipse cx="183" cy="159" rx="6" ry="8" fill="#584452"/>';
   const blush = '<ellipse cx="118" cy="180" rx="12" ry="7" fill="#eda3b9" opacity=".55"/><ellipse cx="202" cy="180" rx="12" ry="7" fill="#eda3b9" opacity=".55"/>';
-  return \`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320">
-  <defs><radialGradient id="bg"><stop stop-color="#fffefa"/><stop offset="1" stop-color="\${palette}"/></radialGradient></defs>
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320">
+  <defs><radialGradient id="bg"><stop stop-color="#fffefa"/><stop offset="1" stop-color="${palette}"/></radialGradient></defs>
   <circle cx="160" cy="159" r="148" fill="url(#bg)" opacity=".62"/>
   <circle cx="62" cy="79" r="9" fill="#fff" opacity=".85"/><circle cx="254" cy="213" r="12" fill="#fff" opacity=".8"/>
   <path d="M252 60l5-18 6 18 17 5-17 6-6 18-5-18-17-6Z" fill="#fff2ac"/>
   <ellipse cx="160" cy="276" rx="83" ry="13" fill="#855d74" opacity=".15"/>
   <path d="M114 229q-18-10-37 12m129-12q18-10 36 12" fill="none" stroke="#947c82" stroke-width="14" stroke-linecap="round"/>
-  <ellipse cx="160" cy="236" rx="60" ry="45" fill="\${palette}" stroke="#947c82" stroke-width="5"/>
-  \${animalBack[i]}
-  \${face}
-  \${blush}
-  \${eyes}
-  \${animalFront[i]}
+  <ellipse cx="160" cy="236" rx="60" ry="45" fill="${palette}" stroke="#947c82" stroke-width="5"/>
+  ${animalBack[i]}
+  ${face}
+  ${blush}
+  ${eyes}
+  ${animalFront[i]}
   <path d="M146 206q14 13 28 0" fill="none" stroke="#795765" stroke-width="4" stroke-linecap="round"/>
-  </svg>\`;
+  </svg>`;
 }
 
 export function characterImage(index: number, version: DiagnosisVersion = 2): string {
