@@ -47,6 +47,10 @@ export class SurveyRoom extends DurableObject<Env> {
         name TEXT NOT NULL,
         owner_hash TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS survey_versions (
+        version INTEGER NOT NULL CHECK (version IN (1, 2))
+      );
       CREATE TABLE IF NOT EXISTS visitors (
         visitor_hash TEXT PRIMARY KEY
       );
@@ -62,14 +66,21 @@ export class SurveyRoom extends DurableObject<Env> {
     const sql = this.ctx.storage.sql;
     if (sql.exec('SELECT id FROM survey WHERE id = 1').toArray().length) return false;
     sql.exec('INSERT INTO survey (id, name, owner_hash) VALUES (1, ?, ?)', name, ownerHash);
+    // A missing record on a preexisting room means it uses the original v1 quiz.
+    sql.exec('INSERT INTO survey_versions (version) VALUES (2)');
     return true;
   }
 
-  publicInfo(): { name: string; count: number } | null {
+  surveyVersion(): 1 | 2 {
+    const row = this.ctx.storage.sql.exec('SELECT version FROM survey_versions LIMIT 1').toArray()[0] as { version: number } | undefined;
+    return row?.version === 2 ? 2 : 1;
+  }
+
+  publicInfo(): { name: string; count: number; version: 1 | 2 } | null {
     const config = this.ctx.storage.sql.exec('SELECT name FROM survey WHERE id = 1').toArray()[0] as { name: string } | undefined;
     if (!config) return null;
     const total = this.ctx.storage.sql.exec("SELECT members FROM aggregates WHERE group_key = 'all'").toArray()[0] as { members: number } | undefined;
-    return { name: config.name, count: total?.members ?? 0 };
+    return { name: config.name, count: total?.members ?? 0, version: this.surveyVersion() };
   }
 
   async submit(payload: SubmitData): Promise<{ accepted: true; count: number } | { accepted: false; reason: 'duplicate' | 'invalid' | 'not_found' }> {
@@ -78,7 +89,7 @@ export class SurveyRoom extends DurableObject<Env> {
       return { accepted: false, reason: 'invalid' };
     }
     if (!this.publicInfo()) return { accepted: false, reason: 'not_found' };
-    const scores = scoreAnswers(payload.answers);
+    const scores = scoreAnswers(payload.answers, this.surveyVersion());
     const fingerprint = await sha256(`${this.ctx.id.toString()}:${payload.visitorId}`);
     let alreadyAnswered = false;
     this.ctx.storage.transactionSync(() => {
@@ -116,6 +127,7 @@ export class SurveyRoom extends DurableObject<Env> {
     return {
       name: config.name,
       count: total.count,
+      version: this.surveyVersion(),
       total,
       relations: relations.map(r => summary(`relation:${r.id}`)),
       positions: positions.map(p => summary(`position:${p.id}`)),
