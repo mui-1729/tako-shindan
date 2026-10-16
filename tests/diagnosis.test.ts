@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { axes, axesForVersion, characterFromScores, characterIndex, characters, isValidAnswers, legacyQuestions, questions, questionsForVersion, scoreAnswers } from '../src/shared/diagnosis';
+import { MIN_PUBLIC_GROUP, canShowGroupScore, axes, axesForVersion, characterFromScores, characterIndex, characters, isValidAnswers, legacyQuestions, questions, questionsForVersion, scoreAnswers } from '../src/shared/diagnosis';
 import { animalSvg, characterImage } from '../src/shared/characterArt';
 
 describe('diagnosis rules', () => {
@@ -58,5 +58,17 @@ describe('redesign and legacy compatibility', () => {
       expect(characterImage(i, 1)).toContain('data:image/svg+xml');
     });
     expect(animalSvg(0)).not.toEqual(animalSvg(15));
+  });
+});
+
+describe('minimum group visibility', () => {
+  it('requires 3 responses to reveal scores (including relationship breakdowns)', () => {
+    expect(MIN_PUBLIC_GROUP).toBe(3);
+    expect(canShowGroupScore(0)).toBe(false);
+    expect(canShowGroupScore(1)).toBe(false);
+    expect(canShowGroupScore(2)).toBe(false);
+    expect(canShowGroupScore(3)).toBe(true);
+    expect(canShowGroupScore(4)).toBe(true);
+    expect(canShowGroupScore(NaN)).toBe(false);
   });
 });
