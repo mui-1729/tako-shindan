@@ -202,4 +202,4 @@ export function characterFromScores(scores: ReadonlyArray<number>, version: Diag
 }
 
 export type GroupSummary = { key: string; count: number; scores: number[] | null };
-export type Report = { name: string; count: number; version: DiagnosisVersion; total: GroupSummary; relations: GroupSummary[]; positions: GroupSummary[] };
+export type Report = { name: string; count: number; version: DiagnosisVersion; total: GroupSummary; relations: GroupSummary[]; positions: GroupSummary[]; respondents?: { nicknames: string[]; namedCount: number } };
