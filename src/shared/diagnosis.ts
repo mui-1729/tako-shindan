@@ -91,7 +91,7 @@ export function canShowGroupScore(count: number): boolean {
   return Number.isInteger(count) && count >= MIN_PUBLIC_GROUP;
 }
 
-export type DiagnosisVersion = 1 | 2;
+export type DiagnosisVersion = 1 | 2 | 3;
 export const axes = [
   { name: '会話の入り方', left: '自分から話す', right: '様子を見て聞く', icon: '💬' },
   { name: '物事の進め方', left: '試しながら', right: '準備してから', icon: '🧭' },
@@ -150,6 +150,63 @@ export const questions: ReadonlyArray<{ axis: number; question: string; options:
   ] },
 ];
 
+
+/**
+ * v3: concrete, playful scenes. Each pair is deliberately about the SAME
+ * observable preference. Options are ordered along a single continuum.
+ * Changing these questions again requires another survey version.
+ */
+export const questionsV3: typeof questions = [
+  { axis: 0, question: 'みんなで遊んでいて、会話がふと止まった。この人は？', options: [
+    { label: '自分から新しい話題を切り出す', value: 0 },
+    { label: 'みんなに質問して会話を始める', value: 33 },
+    { label: '誰かが話し始めたら会話に乗る', value: 67 },
+    { label: '誰かが話を振るまで様子を見る', value: 100 },
+  ] },
+  { axis: 1, question: '集合10分前、集合場所が突然変更！ この人は？', options: [
+    { label: '「とりあえず行ってみよう」と動く', value: 0 },
+    { label: '新しい場所だけ確認して動く', value: 33 },
+    { label: '行き方を確認してから動く', value: 67 },
+    { label: '移動時間と道順を決め直してから動く', value: 100 },
+  ] },
+  { axis: 2, question: 'サークルの企画が毎回同じ。この人が提案しそうなのは？', options: [
+    { label: '「いっそ全然違う企画にしよう！」', value: 0 },
+    { label: '「新しい要素を大きく足そう！」', value: 33 },
+    { label: '「前回の企画を工夫してみよう」', value: 67 },
+    { label: '「好評だった企画をさらに磨こう」', value: 100 },
+  ] },
+  { axis: 3, question: '友達から「今日の発表、盛大にやらかした…」と来た。最初に返すのは？', options: [
+    { label: '「それはつらかったね。話聞くよ」', value: 0 },
+    { label: '「大変だったね。何があった？」', value: 33 },
+    { label: '「どこで困ったか一緒に整理しよう」', value: 67 },
+    { label: '「次にできること、一緒に考えよう」', value: 100 },
+  ] },
+  { axis: 0, question: '初対面の人と同じ班になった。この人の最初の動きは？', options: [
+    { label: '向こうから話しかけられるまで待つ', value: 100 },
+    { label: '声をかけられたら会話に入る', value: 67 },
+    { label: '自分からあいさつして会話を始める', value: 33 },
+    { label: '自分から話題を振って会話を始める', value: 0 },
+  ] },
+  { axis: 1, question: '学祭当日に急な追加作業！ この人なら？', options: [
+    { label: '作業の順番を整理してから始める', value: 100 },
+    { label: '必要なものを確認してから始める', value: 67 },
+    { label: '最低限だけ聞いて作業を始める', value: 33 },
+    { label: 'まず手を動かし、やりながら調整する', value: 0 },
+  ] },
+  { axis: 2, question: 'いつもの遊び方がマンネリ気味。この人なら？', options: [
+    { label: '定番の遊び方をもっと楽しめるように工夫する', value: 100 },
+    { label: 'いつもの遊びに小さな変化を加える', value: 67 },
+    { label: 'いつもと少し違う遊びを試す', value: 33 },
+    { label: '「未体験のやつやろう！」と新しい遊びを提案', value: 0 },
+  ] },
+  { axis: 3, question: '友達が「課題が終わらない！」とSOS。この人の第一声は？', options: [
+    { label: '「何から片付けるか一緒に決めよう」', value: 100 },
+    { label: '「どこが難しいか一緒に整理しよう」', value: 67 },
+    { label: '「大変だね。どこまで進んだ？」', value: 33 },
+    { label: '「焦るよね。まず話聞くよ」', value: 0 },
+  ] },
+];
+
 /** One original animal species per result. Art can be replaced independently. */
 export const characters = [
   { title: 'ひらめきキツネ', emoji: '🦊', color: '#ffb4a2', description: '思いついた話をすぐ形に。みんなの気持ちも忘れない、自由な発案者。' },
@@ -174,7 +231,7 @@ export function axesForVersion(version: DiagnosisVersion = 2) {
   return version === 1 ? legacyAxes : axes;
 }
 export function questionsForVersion(version: DiagnosisVersion = 2) {
-  return version === 1 ? legacyQuestions : questions;
+  return version === 1 ? legacyQuestions : version === 2 ? questions : questionsV3;
 }
 
 export type Answers = number[];
