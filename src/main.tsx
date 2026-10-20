@@ -5,7 +5,7 @@ import { observedTendencies, resultSampleNote, storyFromScores } from './shared/
 import { MIN_PUBLIC_GROUP, axesForVersion, canShowGroupScore, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
-type PublicInfo = { name: string; count: number; version: DiagnosisVersion };
+type PublicInfo = { name: string; count: number; version: DiagnosisVersion; closed?: boolean };
 type Created = { id: string; token: string; name: string };
 type LocalSurvey = { name: string; ownerUrl: string; shareUrl: string };
 
@@ -122,7 +122,7 @@ function Survey({ id }: { id: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [finished, setFinished] = useState(false);
   const [resultScores, setResultScores] = useState<number[]>([]);
-  const version: DiagnosisVersion = info?.version === 1 ? 1 : 2;
+  const version: DiagnosisVersion = info?.version === 1 ? 1 : info?.version === 2 ? 2 : 3;
   const surveyQuestions = questionsForVersion(version);
   useEffect(() => { api<PublicInfo>(`/surveys/${id}`).then(setInfo).catch(e => setError(e.message)).finally(() => setLoading(false)); }, [id]);
   const optionSelected = step === 0 ? relation !== null : step === 1 ? position !== null : answered[step - 2];
@@ -143,6 +143,7 @@ function Survey({ id }: { id: string }) {
   const perspective = relation ? relations.find(r => r.id === relation)?.label : '友達';
   if (loading) return <PageShell><div className="panel centered"><h2>読み込み中… 🐙</h2></div></PageShell>;
   if (!info) return <PageShell><div className="panel centered"><h2>診断リンクが見つかりません</h2><p className="alert">{error}</p><a href="/" className="button primary">トップへ戻る</a></div></PageShell>;
+  if (info.closed) return <PageShell><div className="panel centered"><h2>🔒 この診断は回答受付を停止中</h2><p>作成者が再開すると回答できるようになるよ。</p><a href="/" className="button outline">トップへ戻る</a></div></PageShell>;
   if (finished) return <PageShell><div className="result-layout"><div><div className="eyebrow">✦ RESULT</div><h1 className="result-heading">{info.name}は、<br/>こんな人だった！</h1><CharacterDisplay scores={resultScores} target={info.name} perspective={perspective} version={version}/><p className="micro">※ 16種類のオリジナルキャラクターは今後さらにデザインを調整する予定です。</p></div><section className="panel result-details"><h2>あなたから見た{info.name}</h2><p className="subtle">関係：{perspective} ／ 立場：{positions.find(p => p.id === position)?.label}</p><Bars scores={resultScores} version={version}/><TypeDeepDive scores={resultScores} version={version}/><p className="micro">4軸それぞれの0〜100点は優劣ではなく傾向を表します。心理検査ではありません。</p><ToastButton text={`${perspective}から見た${info.name}は「${characterFromScores(resultScores,version).title}」だった！🐙\n${location.origin}/s/${id}`} label="結果をシェアする文章をコピー" className="primary block"/><button className="button outline block" onClick={() => downloadResultCard(info.name, perspective || '', resultScores, version)}>🖼️ 結果カード画像を保存</button><a className="button outline block" href="/">自分の診断リンクも作る →</a></section></div></PageShell>;
   const currentQ = surveyQuestions[step - 2];
   return <PageShell><div className="survey-layout"><div className="survey-intro"><div className="eyebrow">✦ FROM YOUR POINT OF VIEW</div><h1><em>{info.name}</em>って<br/>どんな人？</h1><p>あなたから見た印象を教えてね。<br/>正解・不正解はないよ！</p><div className="respondent-field"><label htmlFor="respondent-name">あなたのニックネーム（任意）</label><input id="respondent-name" value={respondentNickname} onChange={e => setRespondentNickname(e.target.value)} maxLength={20} placeholder="例：りん / 空欄なら匿名"/><p>入力した名前は診断される本人の管理画面に表示されます。回答内容やタイプは公開されません。</p></div><div className="mini-characters">🦊 🐙 🐰</div><p className="micro">現在 {info.count} 人が回答済み</p></div><section className="panel question-panel"><div className="question-meta"><span>{step < 2 ? '関係性について' : '性格について'}</span><strong>{step + 1} <small>/ 10</small></strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }}/></div>{step === 0 ? <><h2>この人とはどんな関係？</h2><p className="subtle">一番近いものを選んでね</p><div className="option-list">{relations.map(r => <button key={r.id} className={`option ${relation === r.id ? 'selected' : ''}`} onClick={() => setRelation(r.id)}><span>{r.emoji} {r.label}</span><b>{relation === r.id ? '✓' : '○'}</b></button>)}</div></> : step === 1 ? <><h2>あなたは、この人の？</h2><p className="subtle">自分から見た立場を選んでね</p><div className="option-list">{positions.map(p => <button key={p.id} className={`option ${position === p.id ? 'selected' : ''}`} onClick={() => setPosition(p.id)}><span>{p.emoji} {p.label}</span><b>{position === p.id ? '✓' : '○'}</b></button>)}</div><p className="micro">例：自分が後輩なら「後輩」。結果は「後輩から見たあなた」と集計されます。</p></> : <><span className="axis-caption">{axesForVersion(version)[currentQ.axis].icon} {axesForVersion(version)[currentQ.axis].name}</span><h2>Q{step - 1}. {currentQ.question}</h2><div className="option-list">{currentQ.options.map((o, i) => <button key={i} className={`option ${answered[step - 2] && answers[step - 2] === i ? 'selected' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? i : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}><span>{o.label}</span><b>{answered[step - 2] && answers[step - 2] === i ? '✓' : '○'}</b></button>)}</div>{canSkip && <button className={`skip-button ${answered[step - 2] && answers[step - 2] === -1 ? 'chosen' : ''}`} onClick={() => { setAnswers(p => p.map((a, j) => j === step - 2 ? -1 : a)); setAnswered(p => p.map((a, j) => j === step - 2 ? true : a)); }}>わからない・判断できない</button>}</>}
@@ -202,7 +203,32 @@ function Manage({ id }: { id: string }) {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
   const shareUrl = `${location.origin}/s/${id}`;
+  async function changeStatus() {
+    if (!report || working) return;
+    setWorking(true);
+    try {
+      await api(`/surveys/${id}/status`, { method: 'POST', headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify({ closed: !report.closed }) });
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : '受付状態を変更できませんでした'); }
+    finally { setWorking(false); }
+  }
+  async function deleteSurvey() {
+    if (working || !window.confirm('この診断と回答データをすべて削除します。元に戻せません。本当に削除しますか？')) return;
+    if (!window.confirm('最終確認です。回答やニックネームも完全に削除しますか？')) return;
+    setWorking(true);
+    try {
+      await api(`/surveys/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify({ confirmation: 'DELETE' }) });
+      try {
+        const saved = getLocalSurveys().filter(s => s.ownerUrl !== location.href);
+        localStorage.setItem('tako_surveys', JSON.stringify(saved));
+      } catch { /* best effort */ }
+      location.assign('/');
+    } catch (e) { setError(e instanceof Error ? e.message : '削除できませんでした'); setWorking(false); }
+  }
   async function load() {
     setLoading(true);
     try { const data = await api<Report>(`/surveys/${id}/results`, { headers: { authorization: `Bearer ${token}` } }); setReport(data); setError(''); }
@@ -212,11 +238,13 @@ function Manage({ id }: { id: string }) {
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id, token]);
   return <PageShell><div className="manage-header"><div><div className="eyebrow">✦ YOUR RESULTS</div><h1>みんなから見た<br/><em>{report?.name || 'あなた'}</em></h1><p>友達からの回答が集まるほど、見えてくる一面も増えていく。</p></div><div className="count-bubble"><span>回答人数</span><strong>{report?.count ?? '—'}</strong><small>人</small></div></div>{loading ? <div className="panel centered">読み込み中…</div> : error ? <div className="panel centered"><h2>集計を表示できません</h2><p className="alert">{error}</p><p className="micro">作成時の管理リンクを使って開いてね。</p></div> : report && <>
     <div className="manage-actions"><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary"/><button className="button outline" onClick={() => void load()}>↻ 集計を更新</button></div>
+    <div className="manage-controls"><div><b>{report.closed ? '🔒 回答受付を停止中' : '🟢 回答受付中'}</b><p className="micro">受付を停止しても集計結果は残り、あとから再開できるよ。</p></div><button className="button outline" disabled={working} onClick={() => void changeStatus()}>{report.closed ? '受付を再開' : '受付を一時停止'}</button></div>
     {report.total.scores ? <div className="result-layout"><CharacterDisplay scores={report.total.scores} target={report.name} perspective="みんな" version={report.version}/><section className="panel result-details"><h2>全体の印象</h2><Bars scores={report.total.scores} version={report.version}/><TypeDeepDive scores={report.total.scores} version={report.version} count={report.count}/><p className="micro">全員の回答を1人1票で集計しています。値は集計スコアの平均です。</p></section></div> : <section className="panel waiting-panel"><div className="waiting-icon">💌</div><h2>あと {Math.max(0, MIN_PUBLIC_GROUP - report.count)} 人で結果が見られる！</h2><p>回答が{MIN_PUBLIC_GROUP}人集まったら総合結果を公開するよ。少人数の集計なので印象にはばらつきがあるよ。</p></section>}
     {report.total.scores && <MultiPerspectiveProfile report={report} />}
     {report.respondents && <section className="panel respondent-list"><div className="section-label">✦ THANK YOU FOR ANSWERING</div><h2>💌 回答してくれた人</h2><p className="subtle">ニックネームを入力した {report.respondents.namedCount} 人 / 匿名 {Math.max(0, report.count - report.respondents.namedCount)} 人</p>{report.respondents.nicknames.length > 0 ? <div className="respondent-chips">{report.respondents.nicknames.map((name, i) => <span key={i}>{name}</span>)}</div> : <p className="micro">まだニックネーム付きの回答はありません。</p>}{report.respondents.namedCount > report.respondents.nicknames.length && <p className="micro">最新100件のニックネームを表示しています。</p>}<p className="micro">ニックネームは回答者が希望した場合だけ表示。誰がどの選択肢を選んだかは分かりません。</p></section>}
     <div className="result-groups"><CategoryGroup title="💗 関係性ごとの印象" summaries={report.relations} options={relations} version={report.version}/><CategoryGroup title="🎓 立場ごとの印象" summaries={report.positions} options={positions} version={report.version}/></div>
     <div className="soft-box managing-note"><b>🔐 管理リンクを大切に</b><p>管理リンクを知っている人は集計を閲覧できます。なくしても再発行できません。回答者ごとの個別回答は保存・表示していません。</p></div>
+    <div className="danger-zone"><div><b>診断を完全に削除</b><p className="micro">診断リンク・集計・回答者のニックネームを消去します。この操作は取り消せません。</p></div><button className="button outline" disabled={working} onClick={() => void deleteSurvey()}>診断を削除</button></div>
   </>}</PageShell>;
 }
 
