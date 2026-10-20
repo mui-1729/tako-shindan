@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_PUBLIC_GROUP, canShowGroupScore, axes, axesForVersion, characterFromScores, characterIndex, characters, isValidAnswers, legacyQuestions, questions, questionsForVersion, scoreAnswers } from '../src/shared/diagnosis';
+import { MIN_PUBLIC_GROUP, canShowGroupScore, axes, axesForVersion, characterFromScores, characterIndex, characters, isValidAnswers, legacyQuestions, questions, questionsV3, questionsForVersion, scoreAnswers } from '../src/shared/diagnosis';
 import { animalSvg, characterImage } from '../src/shared/characterArt';
 
 describe('diagnosis rules', () => {
@@ -70,5 +70,32 @@ describe('minimum group visibility', () => {
     expect(canShowGroupScore(3)).toBe(true);
     expect(canShowGroupScore(4)).toBe(true);
     expect(canShowGroupScore(NaN)).toBe(false);
+  });
+});
+
+describe('quiz v3 logical consistency and backward compatibility', () => {
+  it('has 8 situational questions with 2 per axis and monotone 4-choice values', () => {
+    expect(questionsV3).toHaveLength(8);
+    axes.forEach((_, axis) => expect(questionsV3.filter(q => q.axis === axis)).toHaveLength(2));
+    questionsV3.forEach((q, i) => {
+      expect(q.options).toHaveLength(4);
+      expect(q.question.length).toBeGreaterThan(12);
+      const values = q.options.map(o => o.value);
+      expect(values).toEqual(i < 4 ? [0, 33, 67, 100] : [100, 67, 33, 0]);
+    });
+  });
+  it('uses new v3 items while returning the same old items for historical links', () => {
+    expect(questionsForVersion(1)).toBe(legacyQuestions);
+    expect(questionsForVersion(2)).toBe(questions);
+    expect(questionsForVersion(3)).toBe(questionsV3);
+    expect(questionsV3[0].question).not.toBe(questions[0].question);
+  });
+  it('scores v3 extremes correctly and retains character mapping', () => {
+    const left = questionsV3.map(q => q.options.findIndex(o => o.value === 0));
+    const right = questionsV3.map(q => q.options.findIndex(o => o.value === 100));
+    expect(scoreAnswers(left, 3)).toEqual([0, 0, 0, 0]);
+    expect(scoreAnswers(right, 3)).toEqual([100, 100, 100, 100]);
+    expect(characterFromScores(scoreAnswers(left, 3), 3).title).toBe('ひらめきキツネ');
+    expect(characterFromScores(scoreAnswers(right, 3), 3).title).toBe('作戦ネコ');
   });
 });
