@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { characters } from '../src/shared/diagnosis';
-import { animalStories, observedTendencies, resultSampleNote, storyFromScores } from '../src/shared/resultNarrative';
+import { animalStories, nearbyCharacter, observedTendencies, resultSampleNote, storyFromScores } from '../src/shared/resultNarrative';
 
 describe('richer v2 personality results', () => {
   it('provides a distinctive, complete story for each of the 16 animals', () => {
@@ -45,5 +45,15 @@ describe('richer v2 personality results', () => {
     expect(resultSampleNote(5)).toContain('少人数');
     expect(resultSampleNote(6)).toContain('集まってきました');
     expect(resultSampleNote(20)).toContain('断定するものではありません');
+  });
+});
+
+describe('borderline animal classification', () => {
+  it('suggests an adjacent character only near a 50-point boundary', () => {
+    expect(nearbyCharacter([49, 30, 20, 80], 3)?.axis).toBe('会話の入り方');
+    expect(nearbyCharacter([49, 30, 20, 80], 3)?.title).toBe('静かなタコ');
+    expect(nearbyCharacter([50, 30, 20, 80], 3)?.title).toBe('冒険トラ');
+    expect(nearbyCharacter([15, 25, 75, 90], 3)).toBeNull();
+    expect(nearbyCharacter([49, 30, 20, 80], 1)).toBeNull();
   });
 });
