@@ -38,6 +38,12 @@ try {
   assert.match(id, /^[a-f0-9]{24}$/);
   const base = '/api/surveys/' + id;
 
+  const sharePage = await fetch(origin + '/s/' + id);
+  const html = await sharePage.text();
+  assert.equal(sharePage.status, 200);
+  assert.ok(html.includes('テスト用ってどんな人？'), 'Per-link OG preview must contain survey nickname');
+  assert.equal(sharePage.headers.get('x-robots-tag'), 'noindex, nofollow');
+
   const info = await request(base);
   assert.equal(info.body.version, 3);
   assert.equal(info.body.closed, false);
