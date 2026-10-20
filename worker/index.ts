@@ -213,6 +213,24 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const segments = url.pathname.split('/').filter(Boolean);
+    // Social crawlers do not run the React app. Re-write metadata for each public share link.
+    if (request.method === 'GET' && segments[0] === 's' && segments.length === 2 && validId(segments[1])) {
+      const page = await env.ASSETS.fetch(request);
+      if (!page.headers.get('content-type')?.includes('text/html')) return page;
+      const info = await env.SURVEYS.getByName(segments[1]).publicInfo();
+      if (!info) return page;
+      const title = `${info.name}ってどんな人？ | たこしんだん`;
+      const description = `${info.name}を診断してみよう！ 仲良しや先輩・後輩から見た意外な一面が分かる、8問の他己診断。`;
+      const rewrite = new HTMLRewriter()
+        .on('meta[property="og:title"]', { element(e) { e.setAttribute('content', title); } })
+        .on('meta[property="og:description"]', { element(e) { e.setAttribute('content', description); } })
+        .on('meta[name="description"]', { element(e) { e.setAttribute('content', description); } })
+        .on('meta[property="og:url"]', { element(e) { e.setAttribute('content', url.origin + url.pathname); } });
+      const headers = new Headers(page.headers);
+      headers.set('cache-control', 'no-store');
+      headers.set('x-robots-tag', 'noindex, nofollow');
+      return rewrite.transform(new Response(page.body, { status: page.status, headers }));
+    }
     if (segments[0] !== 'api') return env.ASSETS.fetch(request);
     if (request.method === 'POST' && segments.length === 2 && segments[1] === 'surveys') {
       try {
