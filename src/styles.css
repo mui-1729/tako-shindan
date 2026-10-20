@@ -45,3 +45,12 @@
 .type-observations strong{color:#a76783}
 .group-story{font-size:12px;color:#7d6575;line-height:1.7;margin:8px 0}
 @media(max-width:750px){.character-tagline{font-size:13px}.character-traits{margin-bottom:19px}.type-deep-dive{margin-top:18px;padding-top:18px}}
+
+/* Owner-only controls */
+.manage-controls,.danger-zone{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:16px 0;padding:20px 22px;border:1px solid #e9d9e2;background:#fffdfb;border-radius:18px}
+.manage-controls b,.danger-zone b{color:#64445a}
+.manage-controls p,.danger-zone p{margin:6px 0 0}
+.danger-zone{margin-top:22px;border-color:#e9cdd0;background:#fff9f8}
+.danger-zone b{color:#8e5359}
+.danger-zone .button{white-space:nowrap}
+@media(max-width:680px){.manage-controls,.danger-zone{align-items:stretch;flex-direction:column;padding:16px}.manage-controls .button,.danger-zone .button{width:100%}}
