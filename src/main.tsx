@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { characterImage } from './shared/characterArt';
 import { nearbyCharacter, observedTendencies, resultSampleNote, storyFromScores } from './shared/resultNarrative';
-import { MIN_PUBLIC_GROUP, axesForVersion, canShowGroupScore, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
+import { MIN_PUBLIC_GROUP, axesForVersion, canShowGroupScore, characterFromScores, characters, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
 type PublicInfo = { name: string; count: number; version: DiagnosisVersion; closed?: boolean };
@@ -40,12 +40,26 @@ function ToastButton({ text, label, className = '' }: { text: string; label: str
   const [done, setDone] = useState(false);
   return <button className={`button ${className}`} onClick={async () => { try { await copy(text); setDone(true); window.setTimeout(() => setDone(false), 2200); } catch { window.prompt('こちらのURLをコピーしてください', text); } }}>{done ? '✓ コピーしました' : label}</button>;
 }
+
+/**
+ * 16 pixel-art animals packed into a lightweight 8-column x 2-row PNG.
+ * A single image request paints every sprite, without adding 16 network requests.
+ */
+export function PixelSprite({ index, label, className = '' }: { index: number; label: string; className?: string }) {
+  const safe = Math.max(0, Math.min(15, Math.floor(index)));
+  const column = safe % 8;
+  const row = Math.floor(safe / 8);
+  return <span role="img" aria-label={label} className={`pixel-sprite ${className}`}
+    style={{ backgroundPosition: `${(column / 7) * 100}% ${row * 100}%` }}/>;
+}
 function CharacterDisplay({ scores, target, perspective, version = 2 }: { scores: number[]; target?: string; perspective?: string; version?: DiagnosisVersion }) {
   const ch = characterFromScores(scores, version);
   const story = storyFromScores(scores, version);
   return <div className="character-card" style={{ '--character-color': ch.color } as React.CSSProperties}>
     <div className="character-topline">FROM MY POINT OF VIEW <span>TYPE {ch.code}</span></div>
-    <div className="character-illustration"><img src={characterImage(ch.index, version)} alt={`${ch.title}のタコキャラクター`} width="290" height="290" /></div>
+    <div className="character-illustration">{version === 3
+      ? <PixelSprite index={ch.index} label={`${ch.title}のドット絵キャラクター`} className="pixel-sprite-large" />
+      : <img src={characterImage(ch.index, version)} alt={`${ch.title}のキャラクター`} width="290" height="290" />}</div>
     <p className="character-kicker">{target ? `${perspective || 'みんな'}から見た${target}` : 'あなたから見たこの人'}</p>
     <h2>{ch.title}</h2>
     {story && <p className="character-tagline">{story.tagline}</p>}
@@ -83,6 +97,18 @@ function TypeDeepDive({ scores, version = 2, count }: { scores: number[]; versio
     <p className="micro">診断は周囲が見た行動の傾向を遊びとして表現したもの。人柄や能力を確定するものではありません。</p>
   </div>;
 }
+function AnimalGallery() {
+  return <section className="panel animal-gallery">
+    <div className="section-label">✦ 16 ANIMAL PERSONALITIES</div>
+    <h2>みんなから見た、16のどうぶつタイプ</h2>
+    <p className="subtle">どんなキャラになるかは、友達が見たあなた次第。ドット絵の動物たちが待っているよ。</p>
+    <div className="animal-grid">{characters.map((animal, index) =>
+      <div className="animal-grid-item" key={animal.title}>
+        <PixelSprite index={index} label={`${animal.title}のドット絵`} />
+        <span>{animal.title}</span>
+      </div>)}</div>
+  </section>;
+}
 function Home() {
   const [name, setName] = useState('');
   const [created, setCreated] = useState<Created | null>(null);
@@ -104,6 +130,7 @@ function Home() {
   }
   return <PageShell>
     <div className="hero"><div className="hero-copy"><div className="eyebrow">✦ SELF × OTHERS PERSONALITY ✦</div><h1>あなたって、<br/><em>どんな人？</em></h1><p>親友から見たあなた。先輩から見たあなた。<br/>同じ自分なのに、ちがうキャラが見えてくる。</p><div className="tag-row"><span>🎭 全16タイプ</span><span>📝 約1分</span><span>💌 ログイン不要</span></div></div><div className="hero-visual"><div className="orbit orbit-one">🐙</div><div className="orbit orbit-two">🦊</div><div className="orbit orbit-three">🐰</div><span className="orbit-star star-one">✳</span><span className="orbit-star star-two">✴</span></div></div>
+    <AnimalGallery/>
     <section className="panel create-panel">
       {!created ? <><div className="section-label">01 / START</div><h2>自分の診断リンクを作ろう</h2><p className="subtle">ニックネームを入力するだけ。友達に送って診断してもらおう！</p><form onSubmit={create} className="create-form"><label htmlFor="name">診断される人の名前</label><input id="name" maxLength={24} value={name} onChange={e => setName(e.target.value)} placeholder="例：たろう" required/><button className="button primary" type="submit" disabled={creating}>{creating ? '作成中…' : '診断リンクを作る →'}</button></form>{error && <p className="alert" role="alert">{error}</p>}</> : <><div className="section-label">✓ LINK CREATED</div><h2>{created.name}の診断リンクができた！</h2><p className="subtle">まずは友達に回答用リンクを送ってね。</p><div className="url-box">{shareUrl}</div><ToastButton text={shareUrl} label="🔗 回答用リンクをコピー" className="primary block"/><div className="soft-box"><b>🔐 あなた専用の管理リンク</b><p>友達の回答を集計するためのリンク。これを他人には送らないでね。</p><ToastButton text={ownerUrl} label="管理リンクをコピー" className="outline"/><a className="text-link" href={ownerUrl}>集計ページを開く →</a></div><button className="link-button" onClick={() => { setCreated(null); setName(''); }}>別のリンクを作る</button></>}
     </section>
@@ -259,10 +286,15 @@ async function downloadResultCard(target: string, relation: string, scores: numb
   ctx.fillStyle = '#fff9f0'; ctx.beginPath(); ctx.roundRect(93, 99, 894, 1142, 42); ctx.fill();
   ctx.fillStyle = '#756b72'; ctx.textAlign = 'center'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('TAKO SHINDAN ✦ FROM MY POINT OF VIEW', 540, 185);
   const mascot = new Image();
-  mascot.src = characterImage(c.index,version);
-  await new Promise<void>(resolve => { mascot.onload = () => resolve(); mascot.onerror = () => resolve(); if (mascot.complete) resolve(); });
-  if (mascot.naturalWidth) ctx.drawImage(mascot, 358, 246, 365, 365);
-  else { ctx.font = '240px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; ctx.fillText(c.emoji, 540, 500); }
+  mascot.src = version === 3 ? '/characters/pixel-atlas.png' : characterImage(c.index, version);
+  await new Promise<void>(resolve => { mascot.onload = () => resolve(); mascot.onerror = () => resolve(); if (mascot.complete && mascot.naturalWidth > 0) resolve(); });
+  if (mascot.naturalWidth) {
+    if (version === 3) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(mascot, (c.index % 8) * 32, Math.floor(c.index / 8) * 24, 32, 24, 312, 259, 456, 342);
+      ctx.imageSmoothingEnabled = true;
+    } else ctx.drawImage(mascot, 358, 246, 365, 365);
+  } else { ctx.font = '240px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; ctx.fillText(c.emoji, 540, 500); }
   ctx.fillStyle = '#4a3945'; ctx.font = 'bold 43px sans-serif'; ctx.fillText(`${relation}から見た${target.slice(0, 12)}`, 540, 638);
   ctx.font = 'bold 62px sans-serif'; ctx.fillText(c.title, 540, 752, 830);
   ctx.font = '32px sans-serif'; ctx.fillStyle = '#665966';
