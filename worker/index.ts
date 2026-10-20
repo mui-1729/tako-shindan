@@ -50,6 +50,11 @@ export class SurveyRoom extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS survey_versions (
         version INTEGER NOT NULL CHECK (version IN (1, 2, 3))
       );
+      CREATE TABLE IF NOT EXISTS submission_limits (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        minute_bucket INTEGER NOT NULL,
+        attempts INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS survey_flags (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         closed INTEGER NOT NULL DEFAULT 0,
@@ -91,6 +96,19 @@ export class SurveyRoom extends DurableObject<Env> {
       .toArray()[0] as { closed: number; deleted: number } | undefined ?? { closed: 0, deleted: 0 };
   }
 
+  // Lightweight per-link flood control. For robust abuse defence also configure
+  // Cloudflare Turnstile / account-level WAF limits in production.
+  allowSubmissionAttempt(): boolean {
+    const minute = Math.floor(Date.now() / 60000);
+    const sql = this.ctx.storage.sql;
+    sql.exec(`INSERT INTO submission_limits (id, minute_bucket, attempts) VALUES (1, ?, 1)
+      ON CONFLICT(id) DO UPDATE SET
+        attempts = CASE WHEN minute_bucket = excluded.minute_bucket THEN attempts + 1 ELSE 1 END,
+        minute_bucket = excluded.minute_bucket`, minute);
+    const row = sql.exec('SELECT attempts FROM submission_limits WHERE id = 1').toArray()[0] as { attempts: number };
+    return row.attempts <= 120;
+  }
+
   isDeleted(): boolean { return this.flags().deleted === 1; }
   isClosed(): boolean { return this.flags().closed === 1; }
 
@@ -101,13 +119,14 @@ export class SurveyRoom extends DurableObject<Env> {
     return { name: config.name, count: total?.members ?? 0, version: this.surveyVersion(), closed: this.isClosed() };
   }
 
-  async submit(payload: SubmitData): Promise<{ accepted: true; count: number } | { accepted: false; reason: 'duplicate' | 'invalid' | 'not_found' | 'closed' }> {
+  async submit(payload: SubmitData): Promise<{ accepted: true; count: number } | { accepted: false; reason: 'duplicate' | 'invalid' | 'not_found' | 'closed' | 'rate_limited' }> {
     if (!isAllowedRelation(payload.relation) || !isAllowedPosition(payload.position) || !isValidAnswers(payload.answers) ||
         typeof payload.visitorId !== 'string' || !/^[a-f0-9]{32}$/.test(payload.visitorId)) {
       return { accepted: false, reason: 'invalid' };
     }
     if (!this.publicInfo()) return { accepted: false, reason: 'not_found' };
     if (this.isClosed()) return { accepted: false, reason: 'closed' };
+    if (!this.allowSubmissionAttempt()) return { accepted: false, reason: 'rate_limited' };
     const nickname = normalizeRespondentNickname(payload.nickname);
     const scores = scoreAnswers(payload.answers, this.surveyVersion());
     const fingerprint = await sha256(`${this.ctx.id.toString()}:${payload.visitorId}`);
@@ -163,6 +182,7 @@ export class SurveyRoom extends DurableObject<Env> {
       sql.exec('DELETE FROM respondent_names');
       sql.exec('DELETE FROM visitors');
       sql.exec('DELETE FROM aggregates');
+      sql.exec('DELETE FROM submission_limits');
       sql.exec('DELETE FROM survey_versions');
       sql.exec('DELETE FROM survey');
     });
@@ -280,6 +300,7 @@ export default {
           if (result.accepted) return json(result, 201);
           if (result.reason === 'duplicate') return json({ error: 'このブラウザでは回答済みです' }, 409);
           if (result.reason === 'closed') return json({ error: 'この診断は回答受付を停止しています' }, 403);
+          if (result.reason === 'rate_limited') return json({ error: '短時間に回答が集中しています。少し時間を空けて再試行してください' }, 429);
           return json({ error: result.reason === 'not_found' ? '診断リンクが見つかりません' : '回答内容が正しくありません' }, result.reason === 'not_found' ? 404 : 400);
         } catch (e) { return json({ error: errorMessage(e) }, 400); }
       }
