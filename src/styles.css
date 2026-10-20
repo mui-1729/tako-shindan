@@ -71,3 +71,14 @@
 .animal-grid-item span:last-child{font-size:10px;line-height:1.5;font-weight:800;color:#76576c;overflow-wrap:anywhere}
 @media(max-width:900px){.animal-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:500px){.animal-gallery{margin:20px 0}.animal-grid{gap:8px}.animal-grid-item{padding:5px 2px 8px}.animal-grid-item span:last-child{font-size:9px}.character-illustration:has(.pixel-sprite-large){min-height:190px}}
+
+.orbit .pixel-sprite{width:94%;max-width:190px;aspect-ratio:4/3}
+.orbit-one .pixel-sprite{transform:rotate(7deg)}
+.orbit-two .pixel-sprite{transform:rotate(-7deg)}
+.orbit-three .pixel-sprite{transform:rotate(10deg)}
+.mini-pixel-characters{display:flex;align-items:center;gap:8px;width:240px;letter-spacing:normal}
+.mini-pixel-characters .pixel-sprite{width:74px}
+.group-type-with-art{display:flex;align-items:center;gap:11px;margin:10px 0}
+.group-type-with-art .group-type{margin:0}
+.pixel-sprite-mini{width:65px;min-width:65px}
+@media(max-width:750px){.mini-pixel-characters{display:none}.orbit .pixel-sprite{max-width:130px}.pixel-sprite-mini{width:55px;min-width:55px}}
