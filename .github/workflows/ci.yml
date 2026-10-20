@@ -19,3 +19,5 @@ jobs:
         run: npm run build
       - name: Validate Cloudflare Worker bundle
         run: npx wrangler deploy --dry-run --outdir .wrangler-check
+      - name: Verify real Worker and Durable Object flows
+        run: node tests/worker-smoke.mjs
