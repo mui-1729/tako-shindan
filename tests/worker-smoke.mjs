@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 
 /** Real local Cloudflare Worker + Durable Objects integration smoke test. */
 const origin = 'http://127.0.0.1:8788';
-const child = spawn('npx', ['wrangler', 'dev', '--port', '8788', '--ip', '127.0.0.1'], {
+const child = spawn('./node_modules/.bin/wrangler', ['dev', '--port', '8788', '--ip', '127.0.0.1'], {
   stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
 });
 let logs = '';
