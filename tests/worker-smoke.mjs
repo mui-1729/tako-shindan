@@ -32,6 +32,13 @@ try {
   }
   if (!ready) throw new Error('Wrangler did not start: ' + logs);
 
+  const pixelAsset = await fetch(origin + '/characters/pixel-atlas.png');
+  assert.equal(pixelAsset.status, 200, 'pixel art asset must be public');
+  assert.ok(pixelAsset.headers.get('content-type')?.includes('image/png'), 'PNG should have correct MIME type');
+  const png = new Uint8Array(await pixelAsset.arrayBuffer());
+  assert.ok(png.length > 1000, 'pixel atlas should not be empty');
+  assert.deepEqual([...png.slice(0, 8)], [137,80,78,71,13,10,26,10]);
+
   const created = await request('/api/surveys', { method: 'POST', data: { name: 'テスト用' } });
   assert.equal(created.status, 201, JSON.stringify(created));
   const { id, token } = created.body;

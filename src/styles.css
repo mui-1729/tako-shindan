@@ -57,3 +57,28 @@
 
 .nearby-type{border:1px solid #e6d7ee;border-radius:12px;background:#f9f4ff;padding:14px 16px;margin:14px 0;color:#76577d;font-size:13px}
 .nearby-type p{font-size:12px;line-height:1.75;margin:5px 0 0}
+
+/* A single image atlas powers every little animal pixel sprite. */
+.pixel-sprite{display:block;aspect-ratio:4/3;width:100%;background-image:url('/characters/pixel-atlas.png');background-repeat:no-repeat;background-size:800% 200%;image-rendering:pixelated;flex:none}
+.pixel-sprite-large{width:100%;max-width:290px;filter:drop-shadow(0 14px 9px #6d547025)}
+.character-illustration:has(.pixel-sprite-large){height:auto;min-height:230px;width:min(290px,87%);align-items:center;margin-top:35px}
+.animal-gallery{margin:35px 0 26px;background:linear-gradient(160deg,#fffefa,#fff5f5)}
+.animal-gallery h2{font-size:clamp(21px,3vw,27px)}
+.animal-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:22px}
+.animal-grid-item{border-radius:14px;background:#fff;border:1px solid #f1e6e9;padding:8px 5px 11px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;gap:7px;min-width:0;transition:transform .17s,box-shadow .17s}
+.animal-grid-item:hover{transform:translateY(-4px);box-shadow:0 10px 24px #87667420}
+.animal-grid-item .pixel-sprite{max-width:100px}
+.animal-grid-item span:last-child{font-size:10px;line-height:1.5;font-weight:800;color:#76576c;overflow-wrap:anywhere}
+@media(max-width:900px){.animal-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:500px){.animal-gallery{margin:20px 0}.animal-grid{gap:8px}.animal-grid-item{padding:5px 2px 8px}.animal-grid-item span:last-child{font-size:9px}.character-illustration:has(.pixel-sprite-large){min-height:190px}}
+
+.orbit .pixel-sprite{width:94%;max-width:190px;aspect-ratio:4/3}
+.orbit-one .pixel-sprite{transform:rotate(7deg)}
+.orbit-two .pixel-sprite{transform:rotate(-7deg)}
+.orbit-three .pixel-sprite{transform:rotate(10deg)}
+.mini-pixel-characters{display:flex;align-items:center;gap:8px;width:240px;letter-spacing:normal}
+.mini-pixel-characters .pixel-sprite{width:74px}
+.group-type-with-art{display:flex;align-items:center;gap:11px;margin:10px 0}
+.group-type-with-art .group-type{margin:0}
+.pixel-sprite-mini{width:65px;min-width:65px}
+@media(max-width:750px){.mini-pixel-characters{display:none}.orbit .pixel-sprite{max-width:130px}.pixel-sprite-mini{width:55px;min-width:55px}}
