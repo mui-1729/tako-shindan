@@ -121,7 +121,7 @@ export const animalStories = [
 
 /** Only the v2 animal descriptions have editorial depth. v1 links remain unchanged. */
 export function storyFromScores(scores: ReadonlyArray<number>, version: DiagnosisVersion = 2) {
-  if (version !== 2) return null;
+  if (version === 1) return null;
   return animalStories[characterIndex(scores)];
 }
 
@@ -130,7 +130,7 @@ export type ObservedTendency = { axis: string; phrase: string; score: number; di
 /** A midpoint should not be narrated as a clear left or right personality. */
 export function observedTendencies(scores: ReadonlyArray<number>, version: DiagnosisVersion = 2): ObservedTendency[] {
   if (scores.length !== 4 || scores.some(v => !Number.isFinite(v) || v < 0 || v > 100)) return [];
-  const definitions = version === 2 ? axes : null;
+  const definitions = version === 1 ? null : axes;
   if (!definitions) return [];
   return scores.map((score, i) => {
     const axis = definitions[i];
