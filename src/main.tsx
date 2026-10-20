@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { characterImage } from './shared/characterArt';
-import { observedTendencies, resultSampleNote, storyFromScores } from './shared/resultNarrative';
+import { nearbyCharacter, observedTendencies, resultSampleNote, storyFromScores } from './shared/resultNarrative';
 import { MIN_PUBLIC_GROUP, axesForVersion, canShowGroupScore, characterFromScores, isValidAnswers, positions, questionsForVersion, relations, scoreAnswers, type DiagnosisVersion, type GroupSummary, type Position, type Relation, type Report } from './shared/diagnosis';
 import './styles.css';
 
@@ -65,6 +65,7 @@ function TypeDeepDive({ scores, version = 2, count }: { scores: number[]; versio
   const story = storyFromScores(scores, version);
   if (!story) return null;
   const tendencies = observedTendencies(scores, version);
+  const nearby = nearbyCharacter(scores, version);
   return <div className="type-deep-dive">
     <div className="section-label">✦ BEYOND THE TYPE</div>
     <h3>もっと詳しく見ると…</h3>
@@ -73,6 +74,7 @@ function TypeDeepDive({ scores, version = 2, count }: { scores: number[]; versio
       <div><span>✨ こんな場面で輝く</span><p>{story.scene}</p></div>
       <div><span>🔎 意外な一面</span><p>{story.surprise}</p></div>
     </div>
+    {nearby && <div className="nearby-type">🔎 <b>近いタイプ：{nearby.emoji} {nearby.title}</b><p>「{nearby.axis}」の点数がタイプの境目に近いよ。少し違う回答だとこのキャラになることも。</p></div>}
     {tendencies.length > 0 && <div className="type-observations">
       <b>特に印象に出ているところ</b>
       {tendencies.slice(0, 2).map(t => <p key={t.axis}><strong>{t.axis}</strong> — {t.phrase}</p>)}
