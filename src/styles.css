@@ -54,3 +54,6 @@
 .danger-zone b{color:#8e5359}
 .danger-zone .button{white-space:nowrap}
 @media(max-width:680px){.manage-controls,.danger-zone{align-items:stretch;flex-direction:column;padding:16px}.manage-controls .button,.danger-zone .button{width:100%}}
+
+.nearby-type{border:1px solid #e6d7ee;border-radius:12px;background:#f9f4ff;padding:14px 16px;margin:14px 0;color:#76577d;font-size:13px}
+.nearby-type p{font-size:12px;line-height:1.75;margin:5px 0 0}
