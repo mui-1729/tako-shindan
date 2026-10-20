@@ -1,4 +1,4 @@
-import { axes, characterIndex, type DiagnosisVersion } from './diagnosis';
+import { axes, characterFromScores, characterIndex, type DiagnosisVersion } from './diagnosis';
 
 /**
  * Playful editorial descriptions, not clinical personality judgments.
@@ -148,4 +148,17 @@ export function resultSampleNote(count: number): string {
   if (count < 6) return 'まだ少人数の印象です。回答が増えるとキャラクターや傾向が変わることがあります。';
   if (count < 12) return 'いくつかの視点が集まってきました。関係性によって見え方が違うかもしれません。';
   return '多くの視点が集まっています。ただし実際の性格を断定するものではありません。';
+}
+
+/** Suggest an adjacent animal only when one axis is near the arbitrary 50-point cut. */
+export function nearbyCharacter(scores: ReadonlyArray<number>, version: DiagnosisVersion = 3) {
+  if (version === 1 || scores.length !== 4 ||
+      scores.some(v => !Number.isFinite(v) || v < 0 || v > 100)) return null;
+  const closest = scores.map((score, axis) => ({ axis, distance: Math.abs(score - 50) }))
+    .sort((a, b) => a.distance - b.distance)[0];
+  if (!closest || closest.distance > 10) return null;
+  const alternative = [...scores];
+  alternative[closest.axis] = scores[closest.axis] >= 50 ? 49 : 50;
+  const character = characterFromScores(alternative, version);
+  return { title: character.title, emoji: character.emoji, axis: axes[closest.axis].name };
 }
